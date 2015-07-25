@@ -3,6 +3,7 @@
 // DBoW2
 
 #include "DBoW2.h" // defines Surf64Vocabulary and Surf64Database
+#include "Frame.h"
 
 //#include "DUtils.h"
 //#include "DUtilsCV.h" // defines macros CVXX
@@ -17,7 +18,101 @@ using namespace DBoW2;
 // ----------------------------------------------------------------------------
 
 void printHelp(){
-    printf("usage: ./line-demo [--mode=CREATE|QUERY] [<images path>] [-k <branch number>] [-l <level number>] [-d <database file name>] [-s <start index>] [-e <end index>] [-v [<vocabulary file name>]]\n");
+    printf("usage: ./line-demo [--mode=CREATEFEA|CREATELINEVOC|CREATEORBVOC|CREATEORBDB|CREATELINEDB|QUERYLINE|QUERYORB|QUERYBOTH] [<images path>] [-k <branch number>] [-l <level number>] [-d <database file name>] [-s <start index>] [-e <end index>] [-v [<vocabulary file name>]]\n");
+}
+void createFeatures(string dir, int startNumber, int endNumber) {
+  assert(endNumber - startNumber >= 0);
+  char fileName[256];
+  char fileName1[256];
+  cout << "Extracting Line and features from: "<< dir << endl;
+  Ptr<BinaryDescriptor>   lbd = BinaryDescriptor::createBinaryDescriptor();
+  for(int i = startNumber; i <= endNumber; ++i)
+  {
+    sprintf(fileName, "%06d.png", i);
+    sprintf(fileName1, "%06d.yml", i);
+    string imgName = dir + fileName;
+    string outFileName = dir + fileName1;
+    Frame frame(imgName, i);
+    frame.detectOrbFeatures();
+    frame.detectLineFeatures();
+    frame.writeToFile(outFileName);
+    if(i % 100 == 0)
+        printf("create features for image %s\n", imgName.c_str());
+  }
+}
+
+void loadLineFeaturesFromFile(vector<vector<Mat> > &lineFeatures, string dir, int startNumber, int endNumber) {
+  assert(endNumber - startNumber >= 0);
+  char fileName[256];
+  char fileName1[256];
+  cout << "loading line features from: "<< dir << endl;
+  for(int i = startNumber; i <= endNumber; ++i)
+  {
+    sprintf(fileName, "%06d.png", i);
+    sprintf(fileName1, "%06d.yml", i);
+    string imgName = dir + fileName;
+    string inFileName = dir + fileName1;
+    Frame frame;
+    frame.loadFromFile(inFileName);
+    if(frame.getLineFeatureSize() < 1)
+        printf("empty line feature\n");
+    lineFeatures.push_back(frame.getLineFeatureDescs());
+    if(i % 100 == 0)
+        printf("loaded line features for image %s\n", imgName.c_str());
+  }
+  /*for(uint i = 0; i < lineFeatures.size(); ++i) {
+      for(uint j = 0; j < lineFeatures[i].size(); ++j) {
+          std::cout << lineFeatures[i][j] << std::endl;
+      }
+  }*/
+}
+
+void loadOrbFeaturesFromFile(vector<vector<Mat> > &orbFeatures, string dir, int startNumber, int endNumber) {
+  assert(endNumber - startNumber >= 0);
+  char fileName[256];
+  char fileName1[256];
+  cout << "loading orb features from: "<< dir << endl;
+  for(int i = startNumber; i <= endNumber; ++i)
+  {
+    sprintf(fileName, "%06d.png", i);
+    sprintf(fileName1, "%06d.yml", i);
+    string imgName = dir + fileName;
+    string inFileName = dir + fileName1;
+    Frame frame;
+    frame.loadFromFile(inFileName);
+    if(frame.getOrbFeatureSize() < 1)
+        printf("empty orb feature\n");
+    orbFeatures.push_back(frame.getOrbFeatureDescs());
+    if(i % 100 == 0)
+        printf("loaded orb features for image %s\n", imgName.c_str());
+  }
+  /*for(uint i = 0; i < orbFeatures.size(); ++i) {
+      for(uint j = 0; j < orbFeatures[i].size(); ++j) {
+          std::cout << orbFeatures[i][j] << std::endl;
+      }
+  }*/
+}
+
+void loadBothFeaturesFromFile(vector<vector<Mat> > &orbFeatures, vector<vector<Mat> > &lineFeatures, string dir, int startNumber, int endNumber) {
+  assert(endNumber - startNumber >= 0);
+  char fileName[256];
+  char fileName1[256];
+  cout << "loading features from: "<< dir << endl;
+  for(int i = startNumber; i <= endNumber; ++i)
+  {
+    sprintf(fileName, "%06d.png", i);
+    sprintf(fileName1, "%06d.yml", i);
+    string imgName = dir + fileName;
+    string inFileName = dir + fileName1;
+    Frame frame;
+    frame.loadFromFile(inFileName);
+    if(frame.getOrbFeatureSize() < 1 || frame.getLineFeatureSize() < 1)
+        printf("empty feature\n");
+    orbFeatures.push_back(frame.getOrbFeatureDescs());
+    lineFeatures.push_back(frame.getLineFeatureDescs());
+    if(i % 100 == 0)
+        printf("loaded features for image %s\n", imgName.c_str());
+  }
 }
 
 void loadFeatures(vector<vector<Mat> > &features, string dir, int startNumber, int imgNumber)
@@ -28,6 +123,7 @@ void loadFeatures(vector<vector<Mat> > &features, string dir, int startNumber, i
 
   char fileName[256];
   cout << "Extracting Line features from: "<< dir << endl;
+  Ptr<BinaryDescriptor>   lbd = BinaryDescriptor::createBinaryDescriptor();
   for(int i = startNumber; i < imgNumber; ++i)
   {
 //    stringstream ss;
@@ -42,50 +138,72 @@ void loadFeatures(vector<vector<Mat> > &features, string dir, int startNumber, i
         continue;
     }
     //double loadEndTime = (double)getTickCount();
-    cv::Mat mask;
     vector<KeyLine> lines;
     Mat linesDescriptors;
-    //Ptr<LSDDetector>        lsd = LSDDetector::createLSDDetector();
-    Ptr<BinaryDescriptor>   lbd = BinaryDescriptor::createBinaryDescriptor();
-    //double createDetectorEndTime = (double)getTickCount();
-    //vector<cv::KeyPoint> keypoints;
-    //vector<float> descriptors;
-
     //lsd->detect(image, lines, 1, 1/*, mask0*/);
     lbd->detect(image, lines/*, mask0*/);
     //double detectEndTime = (double)getTickCount();
     lbd->compute(image,lines,linesDescriptors);
     //double computeDescEndTime = (double)getTickCount();
-    //surf(image, mask, keypoints, descriptors);
     vector<Mat> imgDescVec;
     imgDescVec.resize(linesDescriptors.rows);
     //printf("desc rows %d, cols %d\n", linesDescriptors.rows, linesDescriptors.cols);
     for(size_t j = 0; j < imgDescVec.size(); ++j) {
         //imgDescVec2d[j].resize(FLBD::L);
         imgDescVec[j] = linesDescriptors.row(j);
-        //if(i == 0 && j == 0)
-            //cout << linesDescriptors.row(j) << endl;
-        //assert(desRow.isContinuous() && desRow.cols == FLBD::L);
-        //desRow.copyTo(imgDescVec2d[j]);
     }
     //double changeStructureEndTime = (double)getTickCount();
     features.push_back(imgDescVec);
     if(i % 100 == 0)
         printf("loaded features for image %s\n", imgName.c_str());
-    //printf("========== frame %d ===========\n", i);
-    //printf("load image time: %lf\n", (loadEndTime - startTime) / (double)getTickFrequency());
-    //printf("create detector time: %lf\n", (createDetectorEndTime - loadEndTime) / (double)getTickFrequency());
-    //printf("detect features time: %lf\n", (detectEndTime - createDetectorEndTime) / (double)getTickFrequency());
-    //printf("compute features descriptors time: %lf\n", (computeDescEndTime - detectEndTime) / (double)getTickFrequency());
-    //printf("change structure time: %lf\n", (changeStructureEndTime - computeDescEndTime) / (double)getTickFrequency());
-    //printf("===============================\n\n");
-
-    //features.push_back(vector<vector<unsigned char> >());
     //changeStructure(descriptors, features.back(), surf.descriptorSize());
   }
 }
 
-void createVoc(const vector<vector<Mat> > &features, int imageNumber, int vocBranchNumber, int vocLevelNumber)
+void createORBVoc(const vector<vector<Mat> > &features, int vocBranchNumber, int vocLevelNumber, string vocFileName)
+{
+    // branching factor and depth levels 
+    const WeightingType weight = TF_IDF;
+    const ScoringType score = L1_NORM;
+
+    //Surf64Vocabulary voc(k, L, weight, score);
+    ORBVocabulary voc(vocBranchNumber, vocLevelNumber, weight, score);
+
+    cout << "Creating a small " << vocBranchNumber << "^" << vocLevelNumber << " vocabulary..." << endl;
+    voc.create(features);
+    cout << "... done!" << endl;
+
+    cout << "Vocabulary information: " << endl
+        << voc << endl << endl;
+
+    // lets do something with this vocabulary
+    /*cout << "Matching images against themselves (0 low, 1 high): " << endl;
+    BowVector v1, v2;
+    for(int i = 0; i < imageNumber; i++)
+    {
+        voc.transform(features[i], v1);
+        for(int j = 0; j < imageNumber; j++)
+        {
+            voc.transform(features[j], v2);
+
+            double score = voc.score(v1, v2);
+            cout << "Image " << i << " vs Image " << j << ": " << score << endl;
+        }
+    }*/
+
+    // save the vocabulary to disk
+    cout << endl << "Saving vocabulary..." << endl;
+    // voc.save("small_voc.yml.gz");
+    if(vocFileName.empty()) {
+        char fileName[256];
+        sprintf(fileName, "%d_level_%d_voc.yml.gz", vocBranchNumber, vocLevelNumber);
+        vocFileName = fileName;
+    }
+    voc.save(vocFileName);
+    cout << "Done" << endl;
+}
+
+void createLBDVoc(const vector<vector<Mat> > &features, int vocBranchNumber, int vocLevelNumber, string vocFileName)
 {
     // branching factor and depth levels 
     const WeightingType weight = TF_IDF;
@@ -119,15 +237,52 @@ void createVoc(const vector<vector<Mat> > &features, int imageNumber, int vocBra
     // save the vocabulary to disk
     cout << endl << "Saving vocabulary..." << endl;
     // voc.save("small_voc.yml.gz");
-    char vocFileName[256];
-    sprintf(vocFileName, "KITTI_line_branch%d_level_%d_voc.yml.gz", vocBranchNumber, vocLevelNumber);
+    if(vocFileName.empty()) {
+        char fileName[256];
+        sprintf(fileName, "%d_level_%d_voc.yml.gz", vocBranchNumber, vocLevelNumber);
+        vocFileName = fileName;
+    }
     voc.save(vocFileName);
     cout << "Done" << endl;
 }
 
-void createDatabase(const vector<vector<Mat> > &features, string vocFileName, string dbFileName)
+void createORBDatabase(const vector<vector<Mat> > &features, string vocFileName, string dbFileName)
 {
-  cout << "Creating database..." << endl;
+  cout << "Creating ORB database..." << endl;
+
+  // load the vocabulary from disk
+
+  ORBVocabulary voc(vocFileName);
+  
+  ORBDatabase db(voc, false, 0); // false = do not use direct index
+  // (so ignore the last param)
+  // The direct index is useful if we want to retrieve the features that 
+  // belong to some vocabulary node.
+  // db creates a copy of the vocabulary, we may get rid of "voc" now
+
+  // add images to the database
+  for(size_t i = 0; i < features.size(); i++)
+  {
+    db.add(features[i]);
+  }
+
+  cout << "... done!" << endl;
+
+  cout << "Database information: " << endl << db << endl;
+
+
+  // we can save the database. The created file includes the vocabulary
+  // and the entries added
+  if(dbFileName.empty())
+      dbFileName = "database.yml";
+  cout << "Saving database to: " << dbFileName<< " ..." << endl;
+  db.save(dbFileName);
+  cout << "... done!" << endl;
+}
+
+void createLBDDatabase(const vector<vector<Mat> > &features, string vocFileName, string dbFileName)
+{
+  cout << "Creating LBD database..." << endl;
 
   // load the vocabulary from disk
 
@@ -152,7 +307,9 @@ void createDatabase(const vector<vector<Mat> > &features, string vocFileName, st
 
   // we can save the database. The created file includes the vocabulary
   // and the entries added
-  cout << "Saving database..." << endl;
+  if(dbFileName.empty())
+      dbFileName = "database.yml";
+  cout << "Saving database to: " << dbFileName<< " ..." << endl;
   db.save(dbFileName);
   cout << "... done!" << endl;
   
@@ -162,7 +319,7 @@ void createDatabase(const vector<vector<Mat> > &features, string vocFileName, st
   cout << "... done! This is: " << endl << db2 << endl;*/
 }
 
-void createDatabase(const vector<vector<Mat> > &features, int imageNumber, int vocBranchNumber, int vocLevelNumber)
+void createDatabase(const vector<vector<Mat> > &features, int vocBranchNumber, int vocLevelNumber)
 {
   cout << "Creating database..." << endl;
 
@@ -179,7 +336,7 @@ void createDatabase(const vector<vector<Mat> > &features, int imageNumber, int v
   // db creates a copy of the vocabulary, we may get rid of "voc" now
 
   // add images to the database
-  for(int i = 0; i < imageNumber; i++)
+  for(uint i = 0; i < features.size(); i++)
   {
     db.add(features[i]);
   }
@@ -253,7 +410,43 @@ QueryResults queryImageInDataBase(const LBDDatabase &db, const Mat &image) {
     return results;
 }
 
-void queryImages(const vector<vector<Mat> > &features, const LBDDatabase &db) {
+void queryBoth(const vector<vector<Mat> > &orbFeatures, const ORBDatabase &orbDB, const vector<vector<Mat> > &lineFeatures, const LBDDatabase &lineDB) {
+    assert(orbFeatures.size() == lineFeatures.size());
+    for(size_t i = 0; i < orbFeatures.size(); ++i) {
+        QueryResults orbResults;
+        orbDB.query(orbFeatures[i], orbResults, 4);
+        QueryResults lineResults;
+        lineDB.query(lineFeatures[i], lineResults, 4);
+    }
+}
+
+void queryOrb(const vector<vector<Mat> > &features, const ORBDatabase &db) {
+    double truePositive = 0;
+    double falsePositive = 0;
+    double falseNegative = 0;
+    for(size_t i = 0; i < features.size(); ++i) {
+        QueryResults results;
+        db.query(features[i], results, 4);
+        bool correct = false;
+        for(int j = 0; j < results.size(); ++j) {
+            if(abs((int)results[j].Id - (int)i) <= 5) {
+                truePositive++;
+                correct = true;
+                break;
+            }
+        }
+        if(!correct){
+            printf("false detection: query image %lu\n", i);
+            cout << results << endl;
+            sleep(1);
+            falseNegative++;
+        }
+        //printf("query image %d done with %d\n", i, correct);
+    }
+    printf("recall rate: %lf\n", truePositive / (truePositive + falseNegative));
+}
+
+void queryLine(const vector<vector<Mat> > &features, const LBDDatabase &db) {
     double truePositive = 0;
     double falsePositive = 0;
     double falseNegative = 0;
@@ -286,10 +479,10 @@ int main(int argc, char** argv) {
         return -1;
     }
     char* mode = 0;
-    enum ModeOption {UNKNOWN = -1, CREATEALL = 0, CREATEVOC, CREATEDB, QUERY, ADDDATA};
+    enum ModeOption {UNKNOWN = -1, CREATEFEA, CREATEORBVOC, CREATELINEVOC, CREATEBOTHVOC, CREATEORBDB, CREATELINEDB, CREATEBOTHDB, QUERYLINE, QUERYORB, QUERYBOTH, ADDORBDATA, ADDLINEDATA, ADDBOTHDATA};
     ModeOption modeOpt = UNKNOWN;
     const char *mode_option = "--mode=";
-    string dbFileName, vocFileName;
+    string orbDBFileName, lineDBFileName, orbVocFileName, lineVocFileName;
     int vocBranchNumber = -1;
     int vocLevelNumber = -1;
     int startIndex = 0;
@@ -299,25 +492,57 @@ int main(int argc, char** argv) {
         if(strncmp(mode_option, argv[i], strlen(mode_option)) == 0) {
             mode = argv[i] + strlen(mode_option);
             printf("mode is %s\n", mode);
-            if(strncmp(mode, "CREATEALL", strlen(mode)) == 0) {
-                modeOpt = CREATEALL;
-                printf("set mode to CREATEALL\n");
+            if(strncmp(mode, "CREATEFEA", strlen(mode)) == 0) {
+                modeOpt = CREATEFEA;
+                printf("set mode to CREATEFEA\n");
             }
-            else if(strncmp(mode, "CREATEVOC", strlen(mode)) == 0) {
-                modeOpt = CREATEVOC;
-                printf("set mode to CREATEVOC\n");
+            else if(strncmp(mode, "CREATEORBVOC", strlen(mode)) == 0) {
+                modeOpt = CREATEORBVOC;
+                printf("set mode to CREATEORBVOC\n");
             }
-            else if(strncmp(mode, "CREATEDB", strlen(mode)) == 0) {
-                modeOpt = CREATEDB;
-                printf("set mode to CREATEDB\n");
+            else if(strncmp(mode, "CREATELINEVOC", strlen(mode)) == 0) {
+                modeOpt = CREATELINEVOC;
+                printf("set mode to CREATELINEVOC\n");
             }
-            else if(strncmp(mode, "QUERY", strlen(mode)) == 0) {
-                modeOpt = QUERY;
-                printf("set mode to QUERY\n");
+            else if(strncmp(mode, "CREATEBOTHVOC", strlen(mode)) == 0) {
+                modeOpt = CREATEBOTHVOC;
+                printf("set mode to CREATEBOTHVOC\n");
             }
-            else if(strncmp(mode, "ADDDATA", strlen(mode)) == 0) {
-                modeOpt = ADDDATA;
-                printf("set mode to ADDDATA\n");
+            else if(strncmp(mode, "CREATEORBDB", strlen(mode)) == 0) {
+                modeOpt = CREATEORBDB;
+                printf("set mode to CREATEORBDB\n");
+            }
+            else if(strncmp(mode, "CREATELINEDB", strlen(mode)) == 0) {
+                modeOpt = CREATELINEDB;
+                printf("set mode to CREATELINEDB\n");
+            }
+            else if(strncmp(mode, "CREATEBOTHDB", strlen(mode)) == 0) {
+                modeOpt = CREATEBOTHDB;
+                printf("set mode to CREATEBOTHDB\n");
+            }
+            else if(strncmp(mode, "QUERYLINE", strlen(mode)) == 0) {
+                modeOpt = QUERYLINE;
+                printf("set mode to QUERYLINE\n");
+            }
+            else if(strncmp(mode, "QUERYORB", strlen(mode)) == 0) {
+                modeOpt = QUERYORB;
+                printf("set mode to QUERYORB\n");
+            }
+            else if(strncmp(mode, "QUERYBOTH", strlen(mode)) == 0) {
+                modeOpt = QUERYBOTH;
+                printf("set mode to QUERYBOTH\n");
+            }
+            else if(strncmp(mode, "ADDORBDATA", strlen(mode)) == 0) {
+                modeOpt = ADDORBDATA;
+                printf("set mode to ADDORBDATA\n");
+            }
+            else if(strncmp(mode, "ADDLINEDATA", strlen(mode)) == 0) {
+                modeOpt = ADDLINEDATA;
+                printf("set mode to ADDLINEDATA\n");
+            }
+            else if(strncmp(mode, "ADDBOTHDATA", strlen(mode)) == 0) {
+                modeOpt = ADDBOTHDATA;
+                printf("set mode to ADDBOTHDATA\n");
             }
             else
                 modeOpt = UNKNOWN;
@@ -326,15 +551,25 @@ int main(int argc, char** argv) {
             vocBranchNumber = atoi(argv[++i]);
             printf("voc branch number %d\n", vocBranchNumber);
         }
-        else if(strncmp(argv[i], "-l", 2) == 0) {
+        else if(strncmp(argv[i], "-level", 6) == 0) {
             vocLevelNumber = atoi(argv[++i]);
             printf("voc level number %d\n", vocLevelNumber);
         }
-        else if(strncmp(argv[i], "-d", 2) == 0) {
-            dbFileName = argv[++i];
-        } 
-        else if(strncmp(argv[i], "-v", 2) == 0) {
-            vocFileName = argv[++i];
+        else if(strncmp(argv[i], "-od", 3) == 0 || strncmp(argv[i], "-do", 3) == 0) {
+            orbDBFileName = argv[++i];
+            printf("orbDBFileName: %s\n", orbDBFileName.c_str());
+        }
+        else if(strncmp(argv[i], "-ld", 3) == 0 || strncmp(argv[i], "-dl", 3) == 0) {
+            lineDBFileName = argv[++i];
+            printf("lineDBFileName: %s\n", lineDBFileName.c_str());
+        }
+        else if((strncmp(argv[i], "-vo", 3) == 0) || (strncmp(argv[i], "-ov", 3) == 0)){
+            orbVocFileName = argv[++i];
+            printf("orbVocFileName: %s\n", orbVocFileName.c_str());
+        }  
+        else if((strncmp(argv[i], "-vl", 3) == 0) || (strncmp(argv[i], "-lv", 3) == 0)){
+            lineVocFileName = argv[++i];
+            printf("lineVocFileName: %s\n", lineVocFileName.c_str());
         }
         else if(strncmp(argv[i], "-s", 2) == 0) {
             startIndex = atoi(argv[++i]);
@@ -353,140 +588,294 @@ int main(int argc, char** argv) {
         printHelp();
         return -1;
     }
-    if(startIndex >= endIndex) {
+    if(startIndex > endIndex) {
         printf("start index not small than end index: start %d, end %d\n", startIndex, endIndex);
         printHelp();
         return -1;
     }
-    if((modeOpt == CREATEALL || modeOpt == CREATEVOC) && vocBranchNumber < 0) {
+    if((modeOpt == CREATEBOTHVOC || modeOpt == CREATEORBVOC || modeOpt == CREATELINEVOC) && vocBranchNumber < 0) {
         printf("please indicate branch number using -k\n");
         printHelp();
         return -1;
     }
-    if((modeOpt == CREATEALL || modeOpt == CREATEVOC) && vocLevelNumber < 0) {
-        printf("please indicate level number using -l\n");
+    if((modeOpt == CREATEBOTHVOC || modeOpt == CREATEORBVOC || modeOpt == CREATELINEVOC) && vocLevelNumber < 0) {
+        printf("please indicate level number using -level\n");
         printHelp();
         return -1;
     }
-    if((modeOpt == CREATEDB) && vocFileName.empty()) {
-        printf("please indicate vocabulary file name using -v\n");
+    if(modeOpt == CREATEORBVOC && orbVocFileName.empty()) {
+        printf("please indicate orb vocabulary file name using -ov\n");
         printHelp();
         return -1;
     }
-    if(modeOpt == QUERY || modeOpt == ADDDATA) {
-        if (dbFileName.find("yml") == std::string::npos) {
-            printf("incorrect database file: %s\n", dbFileName.c_str());
+    if(modeOpt == CREATELINEVOC && lineVocFileName.empty()) {
+        printf("please indicate line vocabulary file name using -lv\n");
+        printHelp();
+        return -1;
+    }
+    if(modeOpt == CREATEBOTHVOC){
+        printf("line voc file name %s\n", lineVocFileName.c_str());
+        if(lineVocFileName.empty()) {
+            printf("please indicate line vocabulary file name using -lv\n");
+            printHelp();
+            return -1;
+        }
+        if(orbVocFileName.empty()) {
+            printf("please indicate orb vocabulary file name using -ov\n");
+            printHelp();
+            return -1;
+        }
+    }
+    if(modeOpt == CREATEORBDB && orbVocFileName.empty()) {
+        printf("please indicate orb vocabulary file name using -ov\n");
+        printHelp();
+        return -1;
+    }
+    if(modeOpt == CREATELINEDB && lineVocFileName.empty()) {
+        printf("please indicate line vocabulary file name using -lv\n");
+        printHelp();
+        return -1;
+    }
+    if(modeOpt == CREATEBOTHDB) { 
+        printf("line voc file name %s\n", lineVocFileName.c_str());
+        if(lineVocFileName.empty()) {
+            printf("please indicate line vocabulary file name using -lv\n");
+            printHelp();
+            return -1;
+        }
+        if(orbVocFileName.empty()) {
+            printf("please indicate orb vocabulary file name using -ov\n");
+            printHelp();
+            return -1;
+        }
+        if(lineDBFileName.empty()) {
+            printf("please indicate line database file name using -ld\n");
+            printHelp();
+            return -1;
+        }
+        if(orbDBFileName.empty()) {
+            printf("please indicate orb database file name using -od\n");
+            printHelp();
+            return -1;
+        }
+    }
+    if(modeOpt == CREATEORBDB && orbDBFileName.empty()) {
+        printf("please indicate orb database file name using -od\n");
+        printHelp();
+        return -1;
+    }
+    if(modeOpt == CREATELINEDB && lineDBFileName.empty()) {
+        printf("please indicate line database file name using -ld\n");
+        printHelp();
+        return -1;
+    }
+    if(modeOpt == ADDORBDATA || modeOpt == QUERYORB) {
+        if (orbDBFileName.find("yml") == std::string::npos) {
+            printf("incorrect orb database file: %s, please use -od to indicate orb database\n", orbDBFileName.c_str());
+            printHelp();
+            return -1;
+        }
+    }
+    if(modeOpt == ADDLINEDATA || modeOpt == QUERYLINE) {
+        if (lineDBFileName.find("yml") == std::string::npos) {
+            printf("incorrect line database file: %s, please use -ld to indicate line database\n", lineDBFileName.c_str());
+            printHelp();
+            return -1;
+        }
+    }
+    if(modeOpt == ADDBOTHDATA || modeOpt == QUERYBOTH) {
+        if (orbDBFileName.find("yml") == std::string::npos) {
+            printf("incorrect orb database file: %s, please use -od to indicate orb database\n", orbDBFileName.c_str());
+            printHelp();
+            return -1;
+        }
+        if (lineDBFileName.find("yml") == std::string::npos) {
+            printf("incorrect orb database file: %s, please use -ld to indicate line database\n", orbDBFileName.c_str());
             printHelp();
             return -1;
         }
     }
     //string dir = argv[1];
     switch(modeOpt) {
-        case CREATEALL:
+        case CREATEFEA:
             {
-                printf("creating vocabulary and database\n");
+                printf("creating features\n");
+                long startTime = getTickCount();
+                createFeatures(dirPath, startIndex, endIndex);
+                //printf("feature size %lu\n", features.size());
+                //loadFeatures(features, dir1, imageNumber1);
+                long endFeatureTime = getTickCount();
+                printf("elapsed time [load features]: %lf sec\n",double(endFeatureTime-startTime) / (double)getTickFrequency());
+                break;
+            }
+        case CREATEORBVOC:
+            {
+                printf("creating orb vocabulary\n");
+
+                vector<vector<Mat> > orbFeatures;
+                //vector<vector<Mat> > lineFeatures;
+                long startTime = getTickCount();
+                //loadFeaturesFromFile(orbFeatures, lineFeatures, dirPath, startIndex, endIndex);
+                loadOrbFeaturesFromFile(orbFeatures, dirPath, startIndex, endIndex);
+                //printf("feature size %lu\n", features.size());
+                //loadFeatures(features, dir1, imageNumber1);
+                printf("orb feature size: %lu\n", orbFeatures.size());
+                long endFeatureTime = getTickCount();
+                printf("elapsed time [load features]: %lf sec\n",double(endFeatureTime-startTime) / (double)getTickFrequency());
+                createORBVoc(orbFeatures, vocBranchNumber, vocLevelNumber, orbVocFileName);
+                long endCreateVocTime = getTickCount();
+                printf("elapsed time [create ORB Vocabulary]: %lf sec\n",double(endCreateVocTime-endFeatureTime) / (double)getTickFrequency());
+                break;
+            }
+        case CREATELINEVOC:
+            {
+                printf("creating line vocabulary\n");
                 //string dir0 = "/media/ys/Storage/Dataset/KITTI/10/image_0/";
                 //int imageNumber0 = 1200;
                 //string dir1 = "/media/ys/Storage/Dataset/KITTI/10/image_0/";
                 //int imageNumber1 = 10;
 
-                vector<vector<Mat> > features;
+                vector<vector<Mat> > lineFeatures;
                 long startTime = getTickCount();
-                loadFeatures(features, dirPath, startIndex, endIndex);
+                loadLineFeaturesFromFile(lineFeatures, dirPath, startIndex, endIndex);
                 //printf("feature size %lu\n", features.size());
                 //loadFeatures(features, dir1, imageNumber1);
-                int totalImageNumber = features.size();
-                printf("image number: %lu\n", features.size());
+                printf("line feature size: %lu\n", lineFeatures.size());
                 long endFeatureTime = getTickCount();
                 printf("elapsed time [load features]: %lf sec\n",double(endFeatureTime-startTime) / (double)getTickFrequency());
-                createVoc(features, totalImageNumber, vocBranchNumber, vocLevelNumber);
-                long endCreateVocTime = getTickCount();
-                printf("elapsed time [create Vocabulary]: %lf sec\n",double(endCreateVocTime-endFeatureTime) / (double)getTickFrequency());
-                createDatabase(features, totalImageNumber, vocBranchNumber, vocLevelNumber);
-                long endCreateDatabaseTime = getTickCount();
-                printf("elapsed time [create Database]: %lf sec\n",double(endCreateDatabaseTime-endCreateVocTime) / (double)getTickFrequency());
-                printf("total elapsed time: %lf sec\n", double(getTickCount()-startTime) / (double)getTickFrequency());
-                break;
-            }
-        case CREATEVOC:
-            {
-                printf("creating vocabulary\n");
-                //string dir0 = "/media/ys/Storage/Dataset/KITTI/10/image_0/";
-                //int imageNumber0 = 1200;
-                //string dir1 = "/media/ys/Storage/Dataset/KITTI/10/image_0/";
-                //int imageNumber1 = 10;
-
-                vector<vector<Mat> > features;
-                long startTime = getTickCount();
-                loadFeatures(features, dirPath, startIndex, endIndex);
-                //printf("feature size %lu\n", features.size());
-                //loadFeatures(features, dir1, imageNumber1);
-                int totalImageNumber = features.size();
-                printf("image number: %lu\n", features.size());
-                long endFeatureTime = getTickCount();
-                printf("elapsed time [load features]: %lf sec\n",double(endFeatureTime-startTime) / (double)getTickFrequency());
-                createVoc(features, totalImageNumber, vocBranchNumber, vocLevelNumber);
+                createLBDVoc(lineFeatures, vocBranchNumber, vocLevelNumber, lineVocFileName);
                 long endCreateVocTime = getTickCount();
                 printf("elapsed time [create Vocabulary]: %lf sec\n",double(endCreateVocTime-endFeatureTime) / (double)getTickFrequency());
                 break;
             }
-        case CREATEDB:
+        case CREATEBOTHVOC:
             {
-                printf("creating Database\n");
-                //string dir0 = "/media/ys/Storage/Dataset/KITTI/10/image_0/";
-                //int imageNumber0 = 1200;
-                //string dir1 = "/media/ys/Storage/Dataset/KITTI/10/image_0/";
-                //int imageNumber1 = 10;
-
-                vector<vector<Mat> > features;
+                printf("creating orb and line vocabulary\n");
+                vector<vector<Mat> > orbFeatures;
+                vector<vector<Mat> > lineFeatures;
                 long startTime = getTickCount();
-                loadFeatures(features, dirPath, startIndex, endIndex);
-                //printf("feature size %lu\n", features.size());
-                //loadFeatures(features, dir1, imageNumber1);
-                int totalImageNumber = features.size();
-                printf("image number: %lu\n", features.size());
+                loadBothFeaturesFromFile(orbFeatures, lineFeatures, dirPath, startIndex, endIndex);
+                printf("orb feature size: %lu\n", orbFeatures.size());
+                printf("line feature size: %lu\n", lineFeatures.size());
                 long endFeatureTime = getTickCount();
                 printf("elapsed time [load features]: %lf sec\n",double(endFeatureTime-startTime) / (double)getTickFrequency());
-                if(dbFileName.empty())
-                    dbFileName = "database.yml";
-                createDatabase(features, vocFileName, dbFileName);
+                createORBVoc(orbFeatures, vocBranchNumber, vocLevelNumber, orbVocFileName);
+                createLBDVoc(lineFeatures, vocBranchNumber, vocLevelNumber, lineVocFileName);
                 long endCreateVocTime = getTickCount();
                 printf("elapsed time [create Vocabulary]: %lf sec\n",double(endCreateVocTime-endFeatureTime) / (double)getTickFrequency());
                 break;
             }
-        case QUERY:
+        case CREATEORBDB:
             {
-                printf("query image\n");
-                cout << "Retrieving database: " << dbFileName <<endl;
-                LBDDatabase db2(dbFileName);
+                printf("creating ORB Database\n");
+                vector<vector<Mat> > orbFeatures;
+                long startTime = getTickCount();
+                loadOrbFeaturesFromFile(orbFeatures, dirPath, startIndex, endIndex);
+                long endFeatureTime = getTickCount();
+                printf("elapsed time [load features]: %lf sec\n",double(endFeatureTime-startTime) / (double)getTickFrequency());
+                createORBDatabase(orbFeatures, orbVocFileName, orbDBFileName);
+                long endCreateVocTime = getTickCount();
+                printf("elapsed time [create Vocabulary]: %lf sec\n",double(endCreateVocTime-endFeatureTime) / (double)getTickFrequency());
+                break;
+            }
+        case CREATELINEDB:
+            {
+                printf("creating Line Database\n");
+                vector<vector<Mat> > lineFeatures;
+                long startTime = getTickCount();
+                loadLineFeaturesFromFile(lineFeatures, dirPath, startIndex, endIndex);
+                long endFeatureTime = getTickCount();
+                printf("elapsed time [load features]: %lf sec\n",double(endFeatureTime-startTime) / (double)getTickFrequency());
+                createLBDDatabase(lineFeatures, lineVocFileName, lineDBFileName);
+                long endCreateVocTime = getTickCount();
+                printf("elapsed time [create Vocabulary]: %lf sec\n",double(endCreateVocTime-endFeatureTime) / (double)getTickFrequency());
+                break;
+            }
+        case CREATEBOTHDB:
+            {
+                printf("creating ORB and Line Database\n");
+                vector<vector<Mat> > orbFeatures;
+                vector<vector<Mat> > lineFeatures;
+                long startTime = getTickCount();
+                loadBothFeaturesFromFile(orbFeatures, lineFeatures, dirPath, startIndex, endIndex);
+                long endFeatureTime = getTickCount();
+                printf("elapsed time [load features]: %lf sec\n",double(endFeatureTime-startTime) / (double)getTickFrequency());
+                createORBDatabase(orbFeatures, orbVocFileName, orbDBFileName);
+                createLBDDatabase(lineFeatures, lineVocFileName, lineDBFileName);
+                long endCreateVocTime = getTickCount();
+                printf("elapsed time [create Vocabulary]: %lf sec\n",double(endCreateVocTime-endFeatureTime) / (double)getTickFrequency());
+                break;
+            }
+        case QUERYORB:
+            {
+                printf("query image using ORB database\n");
+                cout << "Retrieving ORB database: " << orbDBFileName <<endl;
+                ORBDatabase db1(orbDBFileName);
+                cout << "... done! This is: " << endl << db1 << endl;
+                vector<vector<Mat> > orbFeatures;
+                loadOrbFeaturesFromFile(orbFeatures, dirPath, startIndex, endIndex);
+                queryOrb(orbFeatures, db1);
+                break;
+            }
+        case QUERYLINE:
+            {
+                printf("query image using line database\n");
+                cout << "Retrieving Line database: " << lineDBFileName <<endl;
+                LBDDatabase db2(lineDBFileName);
                 cout << "... done! This is: " << endl << db2 << endl;
-                //int imageNumber0 = 1200;
-                //string dir0 = "/media/ys/Storage/Dataset/KITTI/10/image_1/";
-                vector<vector<Mat> > features;
-                loadFeatures(features, dirPath, startIndex, endIndex);
-                queryImages(features, db2);
-                //Mat qImg = imread(queryImageName, 0);
-                //if(qImg.empty()) {
-                //    printf("cannot load image %s\n", queryImageName.c_str());
-                //}
-                //queryImageInDataBase(db2, qImg);
+                vector<vector<Mat> > lineFeatures;
+                loadFeatures(lineFeatures, dirPath, startIndex, endIndex);
+                queryLine(lineFeatures, db2);
                 break;
             }
-        case ADDDATA:
+        case QUERYBOTH:
             {
-                cout << "Retrieving database: " << dbFileName <<endl;
-                LBDDatabase db2(dbFileName);
+                printf("query image using ORB and LINE database\n");
+                cout << "Retrieving ORB database: " << orbDBFileName <<endl;
+                ORBDatabase db1(orbDBFileName);
+                cout << "... done! This is: " << endl << db1 << endl;
+                cout << "Retrieving Line database: " << lineDBFileName <<endl;
+                LBDDatabase db2(lineDBFileName);
                 cout << "... done! This is: " << endl << db2 << endl;
-                //int imageNumber0 = 800;
-                //string dir0 = "/media/ys/Storage/Dataset/KITTI/06/image_0/";
-                vector<vector<Mat> > features;
-                loadFeatures(features, dirPath, startIndex, endIndex);
-                addImagesToDatabase(features, db2, dbFileName);
-                //Mat qImg = imread(queryImageName, 0);
-                //if(qImg.empty()) {
-                //    printf("cannot load image %s\n", queryImageName.c_str());
-                //}
-                //queryImageInDataBase(db2, qImg);
+                vector<vector<Mat> > orbFeatures;
+                vector<vector<Mat> > lineFeatures;
+                loadBothFeaturesFromFile(orbFeatures, lineFeatures, dirPath, startIndex, endIndex);
+                queryBoth(orbFeatures, db1, lineFeatures, db2);
+                break;
+            }
+        case ADDORBDATA:
+            {
+                cout << "Retrieving ORB database: " << orbDBFileName <<endl;
+                LBDDatabase db1(orbDBFileName);
+                cout << "... done! This is: " << endl << db1 << endl;
+                vector<vector<Mat> > orbFeatures;
+                loadOrbFeaturesFromFile(orbFeatures, dirPath, startIndex, endIndex);
+                addImagesToDatabase(orbFeatures, db1, orbDBFileName);
+                break;
+            }
+        case ADDLINEDATA:
+            {
+                cout << "Retrieving Line database: " << lineDBFileName <<endl;
+                LBDDatabase db2(lineDBFileName);
+                cout << "... done! This is: " << endl << db2 << endl;
+                vector<vector<Mat> > lineFeatures;
+                loadLineFeaturesFromFile(lineFeatures, dirPath, startIndex, endIndex);
+                addImagesToDatabase(lineFeatures, db2, lineDBFileName);
+                break;
+            }
+        case ADDBOTHDATA:
+            {
+                cout << "Retrieving ORB database: " << orbDBFileName <<endl;
+                LBDDatabase db1(orbDBFileName);
+                cout << "... done! This is: " << endl << db1 << endl;
+                cout << "Retrieving Line database: " << lineDBFileName <<endl;
+                LBDDatabase db2(lineDBFileName);
+                cout << "... done! This is: " << endl << db2 << endl;
+                vector<vector<Mat> > orbFeatures;
+                vector<vector<Mat> > lineFeatures;
+                loadBothFeaturesFromFile(orbFeatures, lineFeatures, dirPath, startIndex, endIndex);
+                addImagesToDatabase(orbFeatures, db1, orbDBFileName);
+                addImagesToDatabase(lineFeatures, db2, lineDBFileName);
                 break;
             }
         case UNKNOWN:
