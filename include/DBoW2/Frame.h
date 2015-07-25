@@ -33,6 +33,10 @@ namespace DBoW2 {
             void detectOrbFeatures();
             void loadFromFile(std::string filename);
             void writeToFile(std::string filename);
+            unsigned long getOrbFeatureSize(){return m_orbFeatureDescs.size();};
+            unsigned long getLineFeatureSize(){return m_lineFeatureDescs.size();};
+            std::vector<cv::Mat> getOrbFeatureDescs() {return m_orbFeatureDescs;};
+            std::vector<cv::Mat> getLineFeatureDescs() {return m_lineFeatureDescs;};
         private:
             std::vector<cv::Mat> m_orbFeatureDescs;
             std::vector<cv::Mat> m_lineFeatureDescs;

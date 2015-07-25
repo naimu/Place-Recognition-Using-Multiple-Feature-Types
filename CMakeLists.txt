@@ -8,12 +8,12 @@ set(HDRS
   include/DBoW2/BowVector.h           #include/DBoW2/FBrief.h              #include/DBoW2/FSurf64.h
   include/DBoW2/QueryResults.h        include/DBoW2/TemplatedDatabase.h   include/DBoW2/FORB.h                  include/DBoW2/FLBD.h
   include/DBoW2/DBoW2.h               include/DBoW2/FClass.h              include/DBoW2/FeatureVector.h         include/DBoW2/FeatureOperate.h
-  include/DBoW2/ScoringObject.h       include/DBoW2/TemplatedVocabulary.h)
+  include/DBoW2/ScoringObject.h       include/DBoW2/TemplatedVocabulary.h include/DBOW2/Frame.h)
 set(SRCS 
   src/BowVector.cpp     
 #src/FBrief.cpp        #src/FSurf64.cpp      
   src/FORB.cpp          src/FLBD.cpp          src/FeatureOperate.cpp
-  src/FeatureVector.cpp src/QueryResults.cpp  src/ScoringObject.cpp)
+  src/FeatureVector.cpp src/QueryResults.cpp  src/ScoringObject.cpp src/Frame.cpp)
 
 find_package(OpenCV REQUIRED)
 find_package(DLib REQUIRED)
@@ -31,6 +31,8 @@ if(BUILD_Demo)
   #target_link_libraries(ORB-demo ${PROJECT_NAME} ${OpenCV_LIBS} ${DLib_LIBS})
   add_executable(line-demo demo/line-demo.cpp)
   target_link_libraries(line-demo ${PROJECT_NAME} ${OpenCV_LIBS} ${DLib_LIBS})
+  add_executable(orb-demo demo/orb-demo.cpp)
+  target_link_libraries(orb-demo ${PROJECT_NAME} ${OpenCV_LIBS} ${DLib_LIBS})
   file(COPY demo/images DESTINATION ${CMAKE_BINARY_DIR}/)
 
 endif(BUILD_Demo)
