@@ -4,6 +4,8 @@
 
 #include "DBoW2.h" // defines Surf64Vocabulary and Surf64Database
 #include "Frame.h"
+#include <iostream>     // std::cin, std::cout
+#include <iterator>     // std::istream_iterator
 
 //#include "DUtils.h"
 //#include "DUtilsCV.h" // defines macros CVXX
@@ -472,6 +474,22 @@ void queryLine(const vector<vector<Mat> > &features, const LBDDatabase &db) {
     printf("recall rate: %lf\n", truePositive / (truePositive + falseNegative));
 }
 
+void readGroundTruth(string gFileName, vector<vector<double> > &groundTruth) {
+    ifstream infile;
+    infile.open(gFileName.c_str());
+    std::string temp;
+    if(!infile.is_open()) {
+        printf("cannot open file %s\n", gFileName.c_str());
+        return;
+    }
+    while (std::getline(infile, temp)) {
+        std::istringstream buffer(temp);
+        std::vector<double> line((std::istream_iterator<double>(buffer)), std::istream_iterator<double>());
+        groundTruth.push_back(line);
+    }
+    infile.close();
+}
+
 int main(int argc, char** argv) {
 
     if(argc < 6) {
@@ -482,7 +500,7 @@ int main(int argc, char** argv) {
     enum ModeOption {UNKNOWN = -1, CREATEFEA, CREATEORBVOC, CREATELINEVOC, CREATEBOTHVOC, CREATEORBDB, CREATELINEDB, CREATEBOTHDB, QUERYLINE, QUERYORB, QUERYBOTH, ADDORBDATA, ADDLINEDATA, ADDBOTHDATA};
     ModeOption modeOpt = UNKNOWN;
     const char *mode_option = "--mode=";
-    string orbDBFileName, lineDBFileName, orbVocFileName, lineVocFileName;
+    string orbDBFileName, lineDBFileName, orbVocFileName, lineVocFileName, gtFileName;
     int vocBranchNumber = -1;
     int vocLevelNumber = -1;
     int startIndex = 0;
@@ -570,6 +588,10 @@ int main(int argc, char** argv) {
         else if((strncmp(argv[i], "-vl", 3) == 0) || (strncmp(argv[i], "-lv", 3) == 0)){
             lineVocFileName = argv[++i];
             printf("lineVocFileName: %s\n", lineVocFileName.c_str());
+        }
+        else if(strncmp(argv[i], "-gt", 3) == 0){
+            gtFileName = argv[++i];
+            printf("ground truth FileName: %s\n", gtFileName.c_str());
         }
         else if(strncmp(argv[i], "-s", 2) == 0) {
             startIndex = atoi(argv[++i]);
@@ -814,6 +836,8 @@ int main(int argc, char** argv) {
                 cout << "... done! This is: " << endl << db1 << endl;
                 vector<vector<Mat> > orbFeatures;
                 loadOrbFeaturesFromFile(orbFeatures, dirPath, startIndex, endIndex);
+                vector<vector<double> > groundTruth;
+                readGroundTruth(gtFileName, groundTruth);
                 queryOrb(orbFeatures, db1);
                 break;
             }
@@ -825,6 +849,8 @@ int main(int argc, char** argv) {
                 cout << "... done! This is: " << endl << db2 << endl;
                 vector<vector<Mat> > lineFeatures;
                 loadFeatures(lineFeatures, dirPath, startIndex, endIndex);
+                vector<vector<double> > groundTruth;
+                readGroundTruth(gtFileName, groundTruth);
                 queryLine(lineFeatures, db2);
                 break;
             }
@@ -840,6 +866,8 @@ int main(int argc, char** argv) {
                 vector<vector<Mat> > orbFeatures;
                 vector<vector<Mat> > lineFeatures;
                 loadBothFeaturesFromFile(orbFeatures, lineFeatures, dirPath, startIndex, endIndex);
+                vector<vector<double> > groundTruth;
+                readGroundTruth(gtFileName, groundTruth);
                 queryBoth(orbFeatures, db1, lineFeatures, db2);
                 break;
             }
