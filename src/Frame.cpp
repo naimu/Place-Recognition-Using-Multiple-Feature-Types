@@ -52,6 +52,10 @@ void Frame::detectOrbFeatures() {
     }
 }
 
+void Frame::setGroundTruth(const std::vector<double> &pose) {
+    m_pose = pose;
+}
+
 void Frame::writeToFile(std::string outFileName) {
     //Write serialization for this class
     FileStorage fs(outFileName, FileStorage::WRITE);

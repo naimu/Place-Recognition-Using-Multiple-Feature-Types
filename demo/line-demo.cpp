@@ -6,7 +6,8 @@
 #include "Frame.h"
 #include <iostream>     // std::cin, std::cout
 #include <iterator>     // std::istream_iterator
-
+#include <unordered_map>
+#include <utility>      // std::pair
 //#include "DUtils.h"
 //#include "DUtilsCV.h" // defines macros CVXX
 //#include "DVision.h"
@@ -22,8 +23,27 @@ using namespace DBoW2;
 void printHelp(){
     printf("usage: ./line-demo [--mode=CREATEFEA|CREATELINEVOC|CREATEORBVOC|CREATEORBDB|CREATELINEDB|QUERYLINE|QUERYORB|QUERYBOTH] [<images path>] [-k <branch number>] [-l <level number>] [-d <database file name>] [-s <start index>] [-e <end index>] [-v [<vocabulary file name>]]\n");
 }
-void createFeatures(string dir, int startNumber, int endNumber) {
+
+bool readGroundTruth(string gFileName, vector<vector<double> > &groundTruth) {
+    ifstream infile;
+    infile.open(gFileName.c_str());
+    std::string temp;
+    if(!infile.is_open()) {
+        printf("cannot open file %s\n", gFileName.c_str());
+        return false;
+    }
+    while (std::getline(infile, temp)) {
+        std::istringstream buffer(temp);
+        std::vector<double> line((std::istream_iterator<double>(buffer)), std::istream_iterator<double>());
+        groundTruth.push_back(line);
+    }
+    infile.close();
+    return true;
+}
+void createFeatures(string dir, int startNumber, int endNumber, string gtFileName = "") {
   assert(endNumber - startNumber >= 0);
+  vector<vector<double> > groundTruth;
+  bool hasGT = readGroundTruth(gtFileName, groundTruth);
   char fileName[256];
   char fileName1[256];
   cout << "Extracting Line and features from: "<< dir << endl;
@@ -37,6 +57,12 @@ void createFeatures(string dir, int startNumber, int endNumber) {
     Frame frame(imgName, i);
     frame.detectOrbFeatures();
     frame.detectLineFeatures();
+    if(hasGT && i < groundTruth.size()) {
+        frame.setGroundTruth(groundTruth[i]);
+    }
+    else {
+        printf("warning: ground truth not found for image %s\n", fileName);
+    }
     frame.writeToFile(outFileName);
     if(i % 100 == 0)
         printf("create features for image %s\n", imgName.c_str());
@@ -65,6 +91,36 @@ void loadLineFeaturesFromFile(vector<vector<Mat> > &lineFeatures, string dir, in
   /*for(uint i = 0; i < lineFeatures.size(); ++i) {
       for(uint j = 0; j < lineFeatures[i].size(); ++j) {
           std::cout << lineFeatures[i][j] << std::endl;
+      }
+  }*/
+}
+
+void loadFramesFromFile(vector<Frame> &frameVec, string dir, int startNumber, int endNumber) {
+  assert(endNumber - startNumber >= 0);
+  char fileName[256];
+  char fileName1[256];
+  cout << "loading frames from: "<< dir << endl;
+  for(int i = startNumber; i <= endNumber; ++i)
+  {
+    sprintf(fileName, "%06d.png", i);
+    sprintf(fileName1, "%06d.yml", i);
+    string imgName = dir + fileName;
+    string inFileName = dir + fileName1;
+    Frame frame;
+    frame.loadFromFile(inFileName);
+    if(frame.getOrbFeatureSize() < 1)
+        printf("empty orb feature\n");
+    if(frame.getLineFeatureSize() < 1)
+        printf("empty line feature\n");
+    if(frame.getGroundTruth().size() < 1)
+        printf("empty ground truth\n");
+    frameVec.push_back(frame);
+    if(i % 100 == 0)
+        printf("loaded frame for image %s\n", imgName.c_str());
+  }
+  /*for(uint i = 0; i < orbFeatures.size(); ++i) {
+      for(uint j = 0; j < orbFeatures[i].size(); ++j) {
+          std::cout << orbFeatures[i][j] << std::endl;
       }
   }*/
 }
@@ -421,6 +477,114 @@ void queryBoth(const vector<vector<Mat> > &orbFeatures, const ORBDatabase &orbDB
         lineDB.query(lineFeatures[i], lineResults, 4);
     }
 }
+/*struct MyQueryResult {
+    //std::pair<uint, uint> ids;
+    int id;
+    double score;
+};*/
+typedef std::pair<int, double> mypair;
+//sort in decending order
+struct MyCmp {
+    bool operator()(const mypair &lhs, const mypair &rhs) {
+        return lhs.second > rhs.second;
+    }
+};
+void queryBothFrame(vector<Frame> &frames, const ORBDatabase &orbDB, const LBDDatabase &lineDB, int orbResultSize = 5, int lineResultSize = 5) {
+    for(size_t i = 0; i < frames.size(); ++i) {
+        QueryResults orbResults, lineResults;
+        orbDB.query(frames[i].getOrbFeatureDescs(), orbResults, orbResultSize);
+        lineDB.query(frames[i].getLineFeatureDescs(), lineResults, lineResultSize);
+        unordered_map<int, double> orbResultMap;
+        unordered_map<int, double> lineResultMap;
+        for(uint i = 0; i < orbResults.size(); ++i) {
+            orbResultMap.insert(std::pair<int, double>(orbResults[i].Id, orbResults[i].Score));
+        }
+        for(uint i = 0; i < lineResults.size(); ++i) {
+            lineResultMap.insert(std::pair<int, double>(lineResults[i].Id, lineResults[i].Score));
+        }
+        unordered_map<int, double>::iterator orbMapIt;
+        unordered_map<int, double>::iterator lineMapIt;
+        unordered_map<int, double> totalResultMap;
+        for(orbMapIt = orbResultMap.begin(); orbMapIt != orbResultMap.end(); ++orbMapIt) {
+            double totalScore = 0.;
+            int orbKey = (int)(orbMapIt->first);
+            double orbScore = orbMapIt->second;
+            //TODO: delete this line
+            assert(totalResultMap.find(orbKey) == totalResultMap.end());
+            lineMapIt = lineResultMap.find(orbKey);
+            //if line query has same id as orb result
+            if(lineMapIt != lineResultMap.end()) {
+                double lineScore = lineMapIt->second;
+                totalScore = 0.5 * orbScore + 0.5 * lineScore;
+            }
+            else {
+                totalScore = orbScore;
+            }
+            totalResultMap.insert(std::make_pair(orbKey, totalScore));
+        }
+        for(lineMapIt = lineResultMap.begin(); lineMapIt != lineResultMap.end(); ++lineMapIt) {
+            int lineKey = (int)(lineMapIt->first);
+            if(totalResultMap.find(lineKey) != totalResultMap.end())
+                continue;
+            double lineScore = lineMapIt->second;
+            totalResultMap.insert(std::make_pair(lineKey, lineScore));
+        }
+        std::vector<mypair> myvec(totalResultMap.begin(), totalResultMap.end());
+        std::sort(myvec.begin(), myvec.end(), MyCmp());
+    }
+}
+
+void queryOrbFrame(vector<Frame> &frames, const ORBDatabase &db, int resultSize = 5) {
+    double truePositive = 0;
+    double falsePositive = 0;
+    double falseNegative = 0;
+    for(size_t i = 0; i < frames.size(); ++i) {
+        QueryResults results;
+        db.query(frames[i].getOrbFeatureDescs(), results, resultSize);
+        bool correct = false;
+        for(int j = 0; j < results.size(); ++j) {
+            if(abs((int)results[j].Id - (int)i) <= 5) {
+                truePositive++;
+                correct = true;
+                break;
+            }
+        }
+        if(!correct || frames[i].getID() == 887){
+            printf("false detection: query image %d\n", frames[i].getID());
+            cout << results << endl;
+            sleep(1);
+            falseNegative++;
+        }
+        //printf("query image %d done with %d\n", i, correct);
+    }
+    printf("recall rate: %lf\n", truePositive / (truePositive + falseNegative));
+}
+
+void queryLineFrame(vector<Frame> &frames, const LBDDatabase &db, int resultSize = 5) {
+    double truePositive = 0;
+    double falsePositive = 0;
+    double falseNegative = 0;
+    for(size_t i = 0; i < frames.size(); ++i) {
+        QueryResults results;
+        db.query(frames[i].getLineFeatureDescs(), results, resultSize);
+        bool correct = false;
+        for(int j = 0; j < results.size(); ++j) {
+            if(abs((int)results[j].Id - (int)i) <= 5) {
+                truePositive++;
+                correct = true;
+                break;
+            }
+        }
+        if(!correct){
+            printf("false detection: query image %d\n", frames[i].getID());
+            cout << results << endl;
+            sleep(1);
+            falseNegative++;
+        }
+        //printf("query image %d done with %d\n", i, correct);
+    }
+    printf("recall rate: %lf\n", truePositive / (truePositive + falseNegative));
+}
 
 void queryOrb(const vector<vector<Mat> > &features, const ORBDatabase &db) {
     double truePositive = 0;
@@ -472,22 +636,6 @@ void queryLine(const vector<vector<Mat> > &features, const LBDDatabase &db) {
         //printf("query image %d done with %d\n", i, correct);
     }
     printf("recall rate: %lf\n", truePositive / (truePositive + falseNegative));
-}
-
-void readGroundTruth(string gFileName, vector<vector<double> > &groundTruth) {
-    ifstream infile;
-    infile.open(gFileName.c_str());
-    std::string temp;
-    if(!infile.is_open()) {
-        printf("cannot open file %s\n", gFileName.c_str());
-        return;
-    }
-    while (std::getline(infile, temp)) {
-        std::istringstream buffer(temp);
-        std::vector<double> line((std::istream_iterator<double>(buffer)), std::istream_iterator<double>());
-        groundTruth.push_back(line);
-    }
-    infile.close();
 }
 
 int main(int argc, char** argv) {
@@ -723,7 +871,7 @@ int main(int argc, char** argv) {
             {
                 printf("creating features\n");
                 long startTime = getTickCount();
-                createFeatures(dirPath, startIndex, endIndex);
+                createFeatures(dirPath, startIndex, endIndex, gtFileName);
                 //printf("feature size %lu\n", features.size());
                 //loadFeatures(features, dir1, imageNumber1);
                 long endFeatureTime = getTickCount();
@@ -832,43 +980,52 @@ int main(int argc, char** argv) {
             {
                 printf("query image using ORB database\n");
                 cout << "Retrieving ORB database: " << orbDBFileName <<endl;
-                ORBDatabase db1(orbDBFileName);
-                cout << "... done! This is: " << endl << db1 << endl;
-                vector<vector<Mat> > orbFeatures;
-                loadOrbFeaturesFromFile(orbFeatures, dirPath, startIndex, endIndex);
-                vector<vector<double> > groundTruth;
-                readGroundTruth(gtFileName, groundTruth);
-                queryOrb(orbFeatures, db1);
+                ORBDatabase orbDB(orbDBFileName);
+                cout << "... done! ORB database is: " << endl << orbDB << endl;
+                //vector<vector<Mat> > orbFeatures;
+                //loadOrbFeaturesFromFile(orbFeatures, dirPath, startIndex, endIndex);
+                //vector<vector<double> > groundTruth;
+                //bool hasGT = readGroundTruth(gtFileName, groundTruth);
+                //queryOrb(orbFeatures, db1);
+                vector<Frame> frameVec;
+                loadFramesFromFile(frameVec, dirPath, startIndex, endIndex);
+                queryOrbFrame(frameVec, orbDB);
                 break;
             }
         case QUERYLINE:
             {
                 printf("query image using line database\n");
                 cout << "Retrieving Line database: " << lineDBFileName <<endl;
-                LBDDatabase db2(lineDBFileName);
-                cout << "... done! This is: " << endl << db2 << endl;
-                vector<vector<Mat> > lineFeatures;
-                loadFeatures(lineFeatures, dirPath, startIndex, endIndex);
-                vector<vector<double> > groundTruth;
-                readGroundTruth(gtFileName, groundTruth);
-                queryLine(lineFeatures, db2);
+                LBDDatabase lineDB(lineDBFileName);
+                cout << "... done! Line database is: " << endl << lineDB << endl;
+                //vector<vector<Mat> > lineFeatures;
+                //loadFeatures(lineFeatures, dirPath, startIndex, endIndex);
+                //vector<vector<double> > groundTruth;
+                //bool hasGT = readGroundTruth(gtFileName, groundTruth);
+                //queryLine(lineFeatures, db2);
+                vector<Frame> frameVec;
+                loadFramesFromFile(frameVec, dirPath, startIndex, endIndex);
+                queryLineFrame(frameVec, lineDB);
                 break;
             }
         case QUERYBOTH:
             {
                 printf("query image using ORB and LINE database\n");
                 cout << "Retrieving ORB database: " << orbDBFileName <<endl;
-                ORBDatabase db1(orbDBFileName);
-                cout << "... done! This is: " << endl << db1 << endl;
+                ORBDatabase orbDB(orbDBFileName);
+                cout << "... done! ORB databse is: " << endl << orbDB << endl;
                 cout << "Retrieving Line database: " << lineDBFileName <<endl;
-                LBDDatabase db2(lineDBFileName);
-                cout << "... done! This is: " << endl << db2 << endl;
-                vector<vector<Mat> > orbFeatures;
-                vector<vector<Mat> > lineFeatures;
-                loadBothFeaturesFromFile(orbFeatures, lineFeatures, dirPath, startIndex, endIndex);
-                vector<vector<double> > groundTruth;
-                readGroundTruth(gtFileName, groundTruth);
-                queryBoth(orbFeatures, db1, lineFeatures, db2);
+                LBDDatabase lineDB(lineDBFileName);
+                cout << "... done! Line database is: " << endl << lineDB << endl;
+                //vector<vector<Mat> > orbFeatures;
+                //vector<vector<Mat> > lineFeatures;
+                //loadBothFeaturesFromFile(orbFeatures, lineFeatures, dirPath, startIndex, endIndex);
+                //vector<vector<double> > groundTruth;
+                //bool hasGT = readGroundTruth(gtFileName, groundTruth);
+                //queryBoth(orbFeatures, db1, lineFeatures, db2);
+                vector<Frame> frameVec;
+                loadFramesFromFile(frameVec, dirPath, startIndex, endIndex);
+                queryBothFrame(frameVec, orbDB, lineDB, 5);
                 break;
             }
         case ADDORBDATA:
