@@ -16,6 +16,7 @@
 #include <string>
 #include <list>
 #include <set>
+#include <unordered_map>
 
 #include "TemplatedVocabulary.h"
 #include "QueryResults.h"
@@ -133,6 +134,8 @@ public:
    */
   EntryId add(const vector<TDescriptor> &features,
     BowVector *bowvec = NULL, FeatureVector *fvec = NULL);
+  EntryId add(const vector<TDescriptor> &features, int id,
+    BowVector *bowvec = NULL, FeatureVector *fvec = NULL);
 
   /**
    * Adss an entry to the database and returns its index
@@ -141,8 +144,22 @@ public:
    *   direct index
    * @return id of new entry
    */
+  EntryId add(const BowVector &vec, int id, 
+    const FeatureVector &fec = FeatureVector() );
   EntryId add(const BowVector &vec, 
     const FeatureVector &fec = FeatureVector() );
+
+  void addPose(int id, const vector<double> &pose) {
+      assert(m_poses.find(id) == m_poses.end());
+      m_poses.insert(std::make_pair(id, pose));
+  };
+  bool getPose(int id, vector<double> &pose) {
+      unordered_map<int, vector<double> >::iterator poseIt = m_poses.find(id);
+      if(poseIt == m_poses.end())
+          return false;
+      pose = poseIt->second;
+      return true;
+  };
 
   /**
    * Empties the database
@@ -318,6 +335,7 @@ protected:
   
   /// Number of valid entries in m_dfile
   int m_nentries;
+  std::unordered_map<int, vector<double> > m_poses;
   
 };
 
@@ -431,7 +449,63 @@ EntryId TemplatedDatabase<TDescriptor, F>::add(
   }
 }
 
+// --------------------------------------------------------------------------
+
+template<class TDescriptor, class F>
+EntryId TemplatedDatabase<TDescriptor, F>::add(
+  const vector<TDescriptor> &features, int featureID,
+  BowVector *bowvec, FeatureVector *fvec)
+{
+  BowVector aux;
+  BowVector& v = (bowvec ? *bowvec : aux);
+  
+  if(m_use_di && fvec != NULL)
+  {
+    m_voc->transform(features, v, *fvec, m_dilevels); // with features
+    return add(v, *fvec);
+  }
+  else if(m_use_di)
+  {
+    FeatureVector fv;
+    m_voc->transform(features, v, fv, m_dilevels); // with features
+    return add(v, fv);
+  }
+  else if(fvec != NULL)
+  {
+    m_voc->transform(features, v, *fvec, m_dilevels); // with features
+    return add(v);
+  }
+  else
+  {
+    m_voc->transform(features, v); // with features
+    return add(v, featureID);
+    //return add(v);
+  }
+}
+
 // ---------------------------------------------------------------------------
+template<class TDescriptor, class F>
+EntryId TemplatedDatabase<TDescriptor, F>::add(const BowVector &v, int featureID,
+  const FeatureVector &fv)
+{
+  //EntryId entry_id = m_nentries++;
+  EntryId entry_id = featureID;
+
+  BowVector::const_iterator vit;
+  vector<unsigned int>::const_iterator iit;
+
+  // update inverted file
+  for(vit = v.begin(); vit != v.end(); ++vit)
+  {
+    const WordId& word_id = vit->first;
+    const WordValue& word_weight = vit->second;
+    
+    IFRow& ifrow = m_ifile[word_id];
+    ifrow.push_back(IFPair(entry_id, word_weight));
+  }
+  
+  return entry_id;
+}
 
 template<class TDescriptor, class F>
 EntryId TemplatedDatabase<TDescriptor, F>::add(const BowVector &v,
@@ -1231,7 +1305,24 @@ void TemplatedDatabase<TDescriptor, F>::save(cv::FileStorage &fs,
   }
   
   fs << "]"; // directIndex
+  fs << "framePoses" << "[";
   
+  unordered_map<int, vector<double> >::const_iterator pit;
+  for(pit = m_poses.begin(); pit != m_poses.end(); ++pit)
+  {
+      fs << "["; // entry of pose
+
+      int frameId = pit->first;
+      const vector<double> pose = pit->second;
+      
+      // save pose of frame
+      fs << "frameId" << frameId;
+      fs << "pose" << "["<< pose << "]";
+      fs << "]"; // entry of pose
+  }
+  
+  fs << "]"; // framePose
+
   fs << "}"; // database
 }
 

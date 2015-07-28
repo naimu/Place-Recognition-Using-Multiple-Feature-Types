@@ -112,7 +112,7 @@ void loadFramesFromFile(vector<Frame> &frameVec, string dir, int startNumber, in
         printf("empty orb feature\n");
     if(frame.getLineFeatureSize() < 1)
         printf("empty line feature\n");
-    if(frame.getGroundTruth().size() < 1)
+    if(frame.getFramePose().size() < 1)
         printf("empty ground truth\n");
     frameVec.push_back(frame);
     if(i % 100 == 0)
@@ -304,7 +304,7 @@ void createLBDVoc(const vector<vector<Mat> > &features, int vocBranchNumber, int
     cout << "Done" << endl;
 }
 
-void createORBDatabase(const vector<vector<Mat> > &features, string vocFileName, string dbFileName)
+void createORBDatabase(const vector<Frame> &framesVec, string vocFileName, string dbFileName)
 {
   cout << "Creating ORB database..." << endl;
 
@@ -318,27 +318,28 @@ void createORBDatabase(const vector<vector<Mat> > &features, string vocFileName,
   // belong to some vocabulary node.
   // db creates a copy of the vocabulary, we may get rid of "voc" now
 
-  // add images to the database
-  for(size_t i = 0; i < features.size(); i++)
+  // add frames to the database
+  for(size_t i = 0; i < framesVec.size(); i++)
   {
-    db.add(features[i]);
+      int frameID = framesVec[i].getID();
+      db.add((framesVec[i].getOrbFeatureDescs()), frameID);
+      db.addPose(frameID, framesVec[i].getFramePose());
   }
+
 
   cout << "... done!" << endl;
 
-  cout << "Database information: " << endl << db << endl;
+  cout << "ORB Database information: " << endl << db << endl;
 
 
   // we can save the database. The created file includes the vocabulary
   // and the entries added
-  if(dbFileName.empty())
-      dbFileName = "database.yml";
-  cout << "Saving database to: " << dbFileName<< " ..." << endl;
+  cout << "Saving ORB database to: " << dbFileName<< " ..." << endl;
   db.save(dbFileName);
   cout << "... done!" << endl;
 }
 
-void createLBDDatabase(const vector<vector<Mat> > &features, string vocFileName, string dbFileName)
+void createLBDDatabase(const vector<Frame> &framesVec, string vocFileName, string dbFileName)
 {
   cout << "Creating LBD database..." << endl;
 
@@ -353,20 +354,20 @@ void createLBDDatabase(const vector<vector<Mat> > &features, string vocFileName,
   // db creates a copy of the vocabulary, we may get rid of "voc" now
 
   // add images to the database
-  for(size_t i = 0; i < features.size(); i++)
+  for(size_t i = 0; i < framesVec.size(); i++)
   {
-    db.add(features[i]);
+      int frameID = framesVec[i].getID();
+      db.add((framesVec[i].getLineFeatureDescs()), frameID);
+      db.addPose(frameID, framesVec[i].getFramePose());
   }
 
   cout << "... done!" << endl;
 
-  cout << "Database information: " << endl << db << endl;
+  cout << " LIne Database information: " << endl << db << endl;
 
 
   // we can save the database. The created file includes the vocabulary
   // and the entries added
-  if(dbFileName.empty())
-      dbFileName = "database.yml";
   cout << "Saving database to: " << dbFileName<< " ..." << endl;
   db.save(dbFileName);
   cout << "... done!" << endl;
@@ -409,6 +410,62 @@ void createDatabase(const vector<vector<Mat> > &features, int vocBranchNumber, i
   cout << "Saving database..." << endl;
   char dbFileName[256];
   sprintf(dbFileName, "KITTI_line_branch%d_level_%d_db.yml.gz", vocBranchNumber, vocLevelNumber);
+  db.save(dbFileName);
+  cout << "... done!" << endl;
+  
+  // once saved, we can load it again  
+  /*cout << "Retrieving database once again..." << endl;
+  LBDDatabase db2("KITTI00_line_K9_L3_db.yml.gz");
+  cout << "... done! This is: " << endl << db2 << endl;*/
+}
+
+void addFramesToDatabase(const vector<Frame> &framesVec, ORBDatabase &db, string dbFileName)
+{
+  cout << "Adding frames to Orb database..." << endl;
+
+  for(size_t i = 0; i < framesVec.size(); i++)
+  {
+      int frameID = framesVec[i].getID();
+    db.add((framesVec[i].getOrbFeatureDescs()), frameID);
+    db.addPose(frameID, framesVec[i].getFramePose());
+  }
+
+  cout << "... done!" << endl;
+
+  cout << "Orb Database information: " << endl << db << endl;
+
+
+  // we can save the database. The created file includes the vocabulary
+  // and the entries added
+  cout << "Saving orb database..." << endl;
+  db.save(dbFileName);
+  cout << "... done!" << endl;
+  
+  // once saved, we can load it again  
+  /*cout << "Retrieving database once again..." << endl;
+  LBDDatabase db2("KITTI00_line_K9_L3_db.yml.gz");
+  cout << "... done! This is: " << endl << db2 << endl;*/
+}
+
+void addFramesToDatabase(const vector<Frame> &framesVec, LBDDatabase &db, string dbFileName)
+{
+  cout << "Adding frames to Line database..." << endl;
+
+  for(size_t i = 0; i < framesVec.size(); i++)
+  {
+      int frameID = framesVec[i].getID();
+    db.add(framesVec[i].getLineFeatureDescs(), frameID);
+    db.addPose(frameID, framesVec[i].getFramePose());
+  }
+
+  cout << "... done!" << endl;
+
+  cout << "Line Database information: " << endl << db << endl;
+
+
+  // we can save the database. The created file includes the vocabulary
+  // and the entries added
+  cout << "Saving Line database..." << endl;
   db.save(dbFileName);
   cout << "... done!" << endl;
   
@@ -482,18 +539,37 @@ void queryBoth(const vector<vector<Mat> > &orbFeatures, const ORBDatabase &orbDB
     int id;
     double score;
 };*/
-typedef std::pair<int, double> mypair;
+typedef std::pair<int, double> MyPair;
 //sort in decending order
 struct MyCmp {
-    bool operator()(const mypair &lhs, const mypair &rhs) {
+    bool operator()(const MyPair &lhs, const MyPair &rhs) {
         return lhs.second > rhs.second;
     }
 };
-void queryBothFrame(vector<Frame> &frames, const ORBDatabase &orbDB, const LBDDatabase &lineDB, int orbResultSize = 5, int lineResultSize = 5) {
+//scale results to [0.5, 1]
+void scaleSortedResult(QueryResults &resultVec, double minScore, double maxScore, double newMin = 0.5, double newMax = 1) {
+    for(size_t i = 0; i < resultVec.size(); ++i) {
+        double scaledScore = resultVec[i].Score;
+        if(scaledScore <= minScore)
+            scaledScore = minScore;
+        else if(scaledScore >= maxScore)
+            scaledScore = maxScore;
+        scaledScore = (newMax - newMin) * (scaledScore - minScore) / (maxScore - minScore) + newMin;
+        resultVec[i].Score = scaledScore;
+    }
+}
+void queryBothFrame(vector<Frame> &frames, ORBDatabase &orbDB, LBDDatabase &lineDB, int orbResultSize = 5, int lineResultSize = 5) {
     for(size_t i = 0; i < frames.size(); ++i) {
+        printf("queyr for id %d\n", frames[i].getID());
         QueryResults orbResults, lineResults;
         orbDB.query(frames[i].getOrbFeatureDescs(), orbResults, orbResultSize);
+        scaleSortedResult(orbResults, orbResults.back().Score, orbResults.front().Score);
+        printf("Orb query result:\n");
+        std::cout << orbResults << std::endl;
         lineDB.query(frames[i].getLineFeatureDescs(), lineResults, lineResultSize);
+        scaleSortedResult(lineResults, lineResults.back().Score, lineResults.front().Score);
+        printf("line query result:\n");
+        std::cout << lineResults << std::endl;
         unordered_map<int, double> orbResultMap;
         unordered_map<int, double> lineResultMap;
         for(uint i = 0; i < orbResults.size(); ++i) {
@@ -510,7 +586,7 @@ void queryBothFrame(vector<Frame> &frames, const ORBDatabase &orbDB, const LBDDa
             int orbKey = (int)(orbMapIt->first);
             double orbScore = orbMapIt->second;
             //TODO: delete this line
-            assert(totalResultMap.find(orbKey) == totalResultMap.end());
+            //assert(totalResultMap.find(orbKey) == totalResultMap.end());
             lineMapIt = lineResultMap.find(orbKey);
             //if line query has same id as orb result
             if(lineMapIt != lineResultMap.end()) {
@@ -518,7 +594,7 @@ void queryBothFrame(vector<Frame> &frames, const ORBDatabase &orbDB, const LBDDa
                 totalScore = 0.5 * orbScore + 0.5 * lineScore;
             }
             else {
-                totalScore = orbScore;
+                totalScore = 0.8 * orbScore;
             }
             totalResultMap.insert(std::make_pair(orbKey, totalScore));
         }
@@ -527,10 +603,23 @@ void queryBothFrame(vector<Frame> &frames, const ORBDatabase &orbDB, const LBDDa
             if(totalResultMap.find(lineKey) != totalResultMap.end())
                 continue;
             double lineScore = lineMapIt->second;
-            totalResultMap.insert(std::make_pair(lineKey, lineScore));
+            totalResultMap.insert(std::make_pair(lineKey, 0.8 * lineScore));
         }
-        std::vector<mypair> myvec(totalResultMap.begin(), totalResultMap.end());
-        std::sort(myvec.begin(), myvec.end(), MyCmp());
+        std::vector<MyPair> queryResultVec(totalResultMap.begin(), totalResultMap.end());
+        std::sort(queryResultVec.begin(), queryResultVec.end(), MyCmp());
+        //scaleSortedResult(queryResultVec, queryResultVec.back().second, queryResultVec.front().second, 0.5, 1.0);
+        vector<double> queryPose = frames[i].getFramePose();
+        printf("query frame pose:(%lf %lf)\n", queryPose[3], queryPose[11]);
+        printf("final result:\n");
+        for(uint i = 0; i < queryResultVec.size(); ++i) {
+            int id = queryResultVec[i].first;
+            vector<double> resultPose;
+            if(!orbDB.getPose(id, resultPose)) {
+                assert(lineDB.getPose(id, resultPose));
+            }
+            printf("id: %d, score %lf: pose: (%lf %lf)\n", queryResultVec[i].first, queryResultVec[i].second, resultPose[3], resultPose[11]);
+        }
+        printf("--------------------------------------------------\n");
     }
 }
 
@@ -549,7 +638,7 @@ void queryOrbFrame(vector<Frame> &frames, const ORBDatabase &db, int resultSize 
                 break;
             }
         }
-        if(!correct || frames[i].getID() == 887){
+        if(!correct){
             printf("false detection: query image %d\n", frames[i].getID());
             cout << results << endl;
             sleep(1);
@@ -940,10 +1029,12 @@ int main(int argc, char** argv) {
                 printf("creating ORB Database\n");
                 vector<vector<Mat> > orbFeatures;
                 long startTime = getTickCount();
-                loadOrbFeaturesFromFile(orbFeatures, dirPath, startIndex, endIndex);
+                vector<Frame> frameVec;
+                loadFramesFromFile(frameVec, dirPath, startIndex, endIndex);
+                //loadOrbFeaturesFromFile(orbFeatures, dirPath, startIndex, endIndex);
                 long endFeatureTime = getTickCount();
                 printf("elapsed time [load features]: %lf sec\n",double(endFeatureTime-startTime) / (double)getTickFrequency());
-                createORBDatabase(orbFeatures, orbVocFileName, orbDBFileName);
+                createORBDatabase(frameVec, orbVocFileName, orbDBFileName);
                 long endCreateVocTime = getTickCount();
                 printf("elapsed time [create Vocabulary]: %lf sec\n",double(endCreateVocTime-endFeatureTime) / (double)getTickFrequency());
                 break;
@@ -953,10 +1044,13 @@ int main(int argc, char** argv) {
                 printf("creating Line Database\n");
                 vector<vector<Mat> > lineFeatures;
                 long startTime = getTickCount();
-                loadLineFeaturesFromFile(lineFeatures, dirPath, startIndex, endIndex);
+                vector<Frame> frameVec;
+                loadFramesFromFile(frameVec, dirPath, startIndex, endIndex);
+                //loadLineFeaturesFromFile(lineFeatures, dirPath, startIndex, endIndex);
                 long endFeatureTime = getTickCount();
                 printf("elapsed time [load features]: %lf sec\n",double(endFeatureTime-startTime) / (double)getTickFrequency());
-                createLBDDatabase(lineFeatures, lineVocFileName, lineDBFileName);
+                createLBDDatabase(frameVec, lineVocFileName, lineDBFileName);
+                //createLBDDatabase(lineFeatures, lineVocFileName, lineDBFileName);
                 long endCreateVocTime = getTickCount();
                 printf("elapsed time [create Vocabulary]: %lf sec\n",double(endCreateVocTime-endFeatureTime) / (double)getTickFrequency());
                 break;
@@ -964,14 +1058,15 @@ int main(int argc, char** argv) {
         case CREATEBOTHDB:
             {
                 printf("creating ORB and Line Database\n");
-                vector<vector<Mat> > orbFeatures;
-                vector<vector<Mat> > lineFeatures;
                 long startTime = getTickCount();
-                loadBothFeaturesFromFile(orbFeatures, lineFeatures, dirPath, startIndex, endIndex);
+                vector<Frame> frameVec;
+                loadFramesFromFile(frameVec, dirPath, startIndex, endIndex);
                 long endFeatureTime = getTickCount();
                 printf("elapsed time [load features]: %lf sec\n",double(endFeatureTime-startTime) / (double)getTickFrequency());
-                createORBDatabase(orbFeatures, orbVocFileName, orbDBFileName);
-                createLBDDatabase(lineFeatures, lineVocFileName, lineDBFileName);
+                createORBDatabase(frameVec, orbVocFileName, orbDBFileName);
+                createLBDDatabase(frameVec, lineVocFileName, lineDBFileName);
+                //createORBDatabase(orbFeatures, orbVocFileName, orbDBFileName);
+                //createLBDDatabase(lineFeatures, lineVocFileName, lineDBFileName);
                 long endCreateVocTime = getTickCount();
                 printf("elapsed time [create Vocabulary]: %lf sec\n",double(endCreateVocTime-endFeatureTime) / (double)getTickFrequency());
                 break;
@@ -1033,9 +1128,9 @@ int main(int argc, char** argv) {
                 cout << "Retrieving ORB database: " << orbDBFileName <<endl;
                 LBDDatabase db1(orbDBFileName);
                 cout << "... done! This is: " << endl << db1 << endl;
-                vector<vector<Mat> > orbFeatures;
-                loadOrbFeaturesFromFile(orbFeatures, dirPath, startIndex, endIndex);
-                addImagesToDatabase(orbFeatures, db1, orbDBFileName);
+                vector<Frame> frameVec;
+                loadFramesFromFile(frameVec, dirPath, startIndex, endIndex);
+                addFramesToDatabase(frameVec, db1, orbDBFileName);
                 break;
             }
         case ADDLINEDATA:
@@ -1043,9 +1138,9 @@ int main(int argc, char** argv) {
                 cout << "Retrieving Line database: " << lineDBFileName <<endl;
                 LBDDatabase db2(lineDBFileName);
                 cout << "... done! This is: " << endl << db2 << endl;
-                vector<vector<Mat> > lineFeatures;
-                loadLineFeaturesFromFile(lineFeatures, dirPath, startIndex, endIndex);
-                addImagesToDatabase(lineFeatures, db2, lineDBFileName);
+                vector<Frame> frameVec;
+                loadFramesFromFile(frameVec, dirPath, startIndex, endIndex);
+                addFramesToDatabase(frameVec, db2, lineDBFileName);
                 break;
             }
         case ADDBOTHDATA:
@@ -1056,11 +1151,10 @@ int main(int argc, char** argv) {
                 cout << "Retrieving Line database: " << lineDBFileName <<endl;
                 LBDDatabase db2(lineDBFileName);
                 cout << "... done! This is: " << endl << db2 << endl;
-                vector<vector<Mat> > orbFeatures;
-                vector<vector<Mat> > lineFeatures;
-                loadBothFeaturesFromFile(orbFeatures, lineFeatures, dirPath, startIndex, endIndex);
-                addImagesToDatabase(orbFeatures, db1, orbDBFileName);
-                addImagesToDatabase(lineFeatures, db2, lineDBFileName);
+                vector<Frame> frameVec;
+                loadFramesFromFile(frameVec, dirPath, startIndex, endIndex);
+                addFramesToDatabase(frameVec, db1, orbDBFileName);
+                addFramesToDatabase(frameVec, db2, lineDBFileName);
                 break;
             }
         case UNKNOWN:

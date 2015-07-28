@@ -34,12 +34,12 @@ namespace DBoW2 {
             void loadFromFile(std::string filename);
             void writeToFile(std::string filename);
             void setGroundTruth(const std::vector<double> &pose);
-            std::vector<double> getGroundTruth() {return m_pose;};
+            std::vector<double> getFramePose() const  {return m_pose;};
             unsigned long getOrbFeatureSize(){return m_orbFeatureDescs.size();};
             unsigned long getLineFeatureSize(){return m_lineFeatureDescs.size();};
-            std::vector<cv::Mat> getOrbFeatureDescs() {return m_orbFeatureDescs;};
-            std::vector<cv::Mat> getLineFeatureDescs() {return m_lineFeatureDescs;};
-            int getID() {return m_id;};
+            std::vector<cv::Mat> getOrbFeatureDescs()const {return m_orbFeatureDescs;};
+            std::vector<cv::Mat> getLineFeatureDescs()const {return m_lineFeatureDescs;};
+            int getID() const {return m_id;};
         private:
             std::vector<cv::Mat> m_orbFeatureDescs;
             std::vector<cv::Mat> m_lineFeatureDescs;
