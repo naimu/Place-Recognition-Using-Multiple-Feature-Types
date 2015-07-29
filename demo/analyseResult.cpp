@@ -13,26 +13,6 @@ using namespace std;
 
 
 // ----------------------------------------------------------------------------
-struct QueryFrame {
-    int frameID;
-    string frameName;
-    vector<double> framePose;
-    QueryFrame(int id, string name, const vector<double> &pose) {
-        frameID = id;
-        frameName = name;
-        framePose = pose;
-    };
-    void print() {
-        cout<< "queryFrame " << frameID << " :" << std::endl;
-        cout<< "queryFrameName: " << frameName << endl;
-        cout << "queryFramePose: ";
-        for(size_t i = 0; i < framePose.size(); ++i) {
-            cout << framePose[i] << " ";
-        }
-        cout << endl;
-        cout << "End queryFrame " << frameID<<endl;
-    };
-};
 
 struct QueryResult {
     int frameID;
@@ -54,8 +34,32 @@ struct QueryResult {
         cout << "End resultFrame " << frameID<<endl;
     };
 };
+struct QueryFrame {
+    int frameID;
+    string frameName;
+    vector<double> framePose;
+    vector<QueryResult> queryResults;
+    QueryFrame(int id, string name, const vector<double> &pose) {
+        frameID = id;
+        frameName = name;
+        framePose = pose;
+    };
+    void addResult(const QueryResult &result) {
+        queryResults.push_back(result);
+    };
+    void print() {
+        cout<< "queryFrame " << frameID << " :" << std::endl;
+        cout<< "queryFrameName: " << frameName << endl;
+        cout << "queryFramePose: ";
+        for(size_t i = 0; i < framePose.size(); ++i) {
+            cout << framePose[i] << " ";
+        }
+        cout << endl;
+        cout << "End queryFrame " << frameID<<endl;
+    };
+};
 
-bool loadResult(string resultFileName, string nodeName = "result") {
+bool loadResult(string resultFileName, vector<QueryFrame> &qFVec, string nodeName = "result") {
     cv::FileStorage resultFS(resultFileName.c_str(), cv::FileStorage::READ);
     if(!resultFS.isOpened()) throw string("Could not open file ") + resultFileName;
     cv::FileNode fquery = resultFS[nodeName];
@@ -78,8 +82,10 @@ bool loadResult(string resultFileName, string nodeName = "result") {
             vector<double> rPose;
             cv::read(fff, rPose);
             QueryResult qresult(rId, rScore, rPose);
+            qframe.addResult(qresult);
             qresult.print();
         }
+        qFVec.push_back(qframe);
     }
 }
 int main(int argc, char** argv) {
@@ -88,7 +94,8 @@ int main(int argc, char** argv) {
         return -1;
     }
     string resultFileName = argv[1];
-    loadResult(resultFileName);
+    vector<QueryFrame> queryFrameVec;// all results in this vector
+    loadResult(resultFileName, queryFrameVec);
     return 0;
 
 }
