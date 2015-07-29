@@ -490,6 +490,7 @@ EntryId TemplatedDatabase<TDescriptor, F>::add(const BowVector &v, int featureID
 {
   //EntryId entry_id = m_nentries++;
   EntryId entry_id = featureID;
+  m_nentries++;
 
   BowVector::const_iterator vit;
   vector<unsigned int>::const_iterator iit;
@@ -1310,15 +1311,15 @@ void TemplatedDatabase<TDescriptor, F>::save(cv::FileStorage &fs,
   unordered_map<int, vector<double> >::const_iterator pit;
   for(pit = m_poses.begin(); pit != m_poses.end(); ++pit)
   {
-      fs << "["; // entry of pose
+      fs << "{"; // entry of pose
 
       int frameId = pit->first;
       const vector<double> pose = pit->second;
       
       // save pose of frame
       fs << "frameId" << frameId;
-      fs << "pose" << "["<< pose << "]";
-      fs << "]"; // entry of pose
+      fs << "pose" << pose;
+      fs << "}"; // entry of pose
   }
   
   fs << "]"; // framePose
@@ -1412,6 +1413,24 @@ void TemplatedDatabase<TDescriptor, F>::load(const cv::FileStorage &fs,
       }
     } // for each entry
   } // if use_id
+
+  //framePoses
+  fn = fdb["framePoses"];
+  printf("m_nentries %d\n", m_nentries);
+  printf("fn.size() %d\n", (int)fn.size());
+
+  assert(m_nentries == (int)fn.size());
+
+  for(int pid = 0; pid < fn.size(); ++pid)
+  {
+      cv::FileNode pFileNode = fn[pid];
+
+      int frameID = (int)pFileNode["frameId"];
+      cv::FileNode ff = fn[pid]["pose"];
+      vector<double> f_pose;
+      cv::read(ff, f_pose);
+      m_poses.insert(make_pair(frameID, f_pose));
+  } // for each entry
   
 }
 

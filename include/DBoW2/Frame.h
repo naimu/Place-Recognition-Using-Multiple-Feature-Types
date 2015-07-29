@@ -40,6 +40,7 @@ namespace DBoW2 {
             std::vector<cv::Mat> getOrbFeatureDescs()const {return m_orbFeatureDescs;};
             std::vector<cv::Mat> getLineFeatureDescs()const {return m_lineFeatureDescs;};
             int getID() const {return m_id;};
+            std::string getImageName() const {return m_imageName;};
         private:
             std::vector<cv::Mat> m_orbFeatureDescs;
             std::vector<cv::Mat> m_lineFeatureDescs;

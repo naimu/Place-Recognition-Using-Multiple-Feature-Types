@@ -21,7 +21,7 @@ using namespace DBoW2;
 // ----------------------------------------------------------------------------
 
 void printHelp(){
-    printf("usage: ./line-demo [--mode=CREATEFEA|CREATELINEVOC|CREATEORBVOC|CREATEORBDB|CREATELINEDB|QUERYLINE|QUERYORB|QUERYBOTH] [<images path>] [-k <branch number>] [-l <level number>] [-d <database file name>] [-s <start index>] [-e <end index>] [-v [<vocabulary file name>]]\n");
+    printf("usage: ./line-demo [--mode=CREATEFRAME|CREATELINEVOC|CREATEORBVOC|CREATEORBDB|CREATELINEDB|QUERYLINE|QUERYORB|QUERYBOTH] [<images path>] [-k <branch number>] [-l <level number>] [-d <database file name>] [-s <start index>] [-e <end index>] [-v [<vocabulary file name>]]\n");
 }
 
 bool readGroundTruth(string gFileName, vector<vector<double> > &groundTruth) {
@@ -40,7 +40,7 @@ bool readGroundTruth(string gFileName, vector<vector<double> > &groundTruth) {
     infile.close();
     return true;
 }
-void createFeatures(string dir, int startNumber, int endNumber, string gtFileName = "") {
+void createFrames(string dir, int startNumber, int endNumber, string gtFileName = "") {
   assert(endNumber - startNumber >= 0);
   vector<vector<double> > groundTruth;
   bool hasGT = readGroundTruth(gtFileName, groundTruth);
@@ -558,8 +558,14 @@ void scaleSortedResult(QueryResults &resultVec, double minScore, double maxScore
         resultVec[i].Score = scaledScore;
     }
 }
+
 void queryBothFrame(vector<Frame> &frames, ORBDatabase &orbDB, LBDDatabase &lineDB, int orbResultSize = 5, int lineResultSize = 5) {
+    string filename = "queryResult.yml";
+    cv::FileStorage resultFS(filename.c_str(), cv::FileStorage::WRITE);
+    if(!resultFS.isOpened()) throw string("Could not open file ") + filename;
+    resultFS << "result" << "["; //result
     for(size_t i = 0; i < frames.size(); ++i) {
+        resultFS<<"{";
         printf("queyr for id %d\n", frames[i].getID());
         QueryResults orbResults, lineResults;
         orbDB.query(frames[i].getOrbFeatureDescs(), orbResults, orbResultSize);
@@ -609,18 +615,35 @@ void queryBothFrame(vector<Frame> &frames, ORBDatabase &orbDB, LBDDatabase &line
         std::sort(queryResultVec.begin(), queryResultVec.end(), MyCmp());
         //scaleSortedResult(queryResultVec, queryResultVec.back().second, queryResultVec.front().second, 0.5, 1.0);
         vector<double> queryPose = frames[i].getFramePose();
+        resultFS << "queryImage" << "{";
+        resultFS << "frameID" << frames[i].getID();
+        resultFS << "frameName" << frames[i].getImageName();
+        resultFS << "framePose" << frames[i].getFramePose();
+        resultFS << "}"; //query image
+
+        resultFS << "queryResults" << "[";
         printf("query frame pose:(%lf %lf)\n", queryPose[3], queryPose[11]);
         printf("final result:\n");
         for(uint i = 0; i < queryResultVec.size(); ++i) {
             int id = queryResultVec[i].first;
+            double score = queryResultVec[i].second;
             vector<double> resultPose;
             if(!orbDB.getPose(id, resultPose)) {
                 assert(lineDB.getPose(id, resultPose));
             }
-            printf("id: %d, score %lf: pose: (%lf %lf)\n", queryResultVec[i].first, queryResultVec[i].second, resultPose[3], resultPose[11]);
+            resultFS << "{";
+            resultFS << "frameID" << id;
+            resultFS << "score" << score;
+            resultFS << "pose" << resultPose;
+            resultFS << "}";
+            printf("id: %d, score %lf: pose: (%lf %lf)\n", id, score, resultPose[3], resultPose[11]);
         }
         printf("--------------------------------------------------\n");
+        resultFS << "]"; //query result
+        resultFS << "}";
     }
+    resultFS << "]"; //result
+    resultFS.release();
 }
 
 void queryOrbFrame(vector<Frame> &frames, const ORBDatabase &db, int resultSize = 5) {
@@ -734,7 +757,7 @@ int main(int argc, char** argv) {
         return -1;
     }
     char* mode = 0;
-    enum ModeOption {UNKNOWN = -1, CREATEFEA, CREATEORBVOC, CREATELINEVOC, CREATEBOTHVOC, CREATEORBDB, CREATELINEDB, CREATEBOTHDB, QUERYLINE, QUERYORB, QUERYBOTH, ADDORBDATA, ADDLINEDATA, ADDBOTHDATA};
+    enum ModeOption {UNKNOWN = -1, CREATEFRAME, CREATEORBVOC, CREATELINEVOC, CREATEBOTHVOC, CREATEORBDB, CREATELINEDB, CREATEBOTHDB, QUERYLINE, QUERYORB, QUERYBOTH, ADDORBDATA, ADDLINEDATA, ADDBOTHDATA};
     ModeOption modeOpt = UNKNOWN;
     const char *mode_option = "--mode=";
     string orbDBFileName, lineDBFileName, orbVocFileName, lineVocFileName, gtFileName;
@@ -747,9 +770,9 @@ int main(int argc, char** argv) {
         if(strncmp(mode_option, argv[i], strlen(mode_option)) == 0) {
             mode = argv[i] + strlen(mode_option);
             printf("mode is %s\n", mode);
-            if(strncmp(mode, "CREATEFEA", strlen(mode)) == 0) {
-                modeOpt = CREATEFEA;
-                printf("set mode to CREATEFEA\n");
+            if(strncmp(mode, "CREATEFRAME", strlen(mode)) == 0) {
+                modeOpt = CREATEFRAME;
+                printf("set mode to CREATEFRAME\n");
             }
             else if(strncmp(mode, "CREATEORBVOC", strlen(mode)) == 0) {
                 modeOpt = CREATEORBVOC;
@@ -956,11 +979,11 @@ int main(int argc, char** argv) {
     }
     //string dir = argv[1];
     switch(modeOpt) {
-        case CREATEFEA:
+        case CREATEFRAME:
             {
                 printf("creating features\n");
                 long startTime = getTickCount();
-                createFeatures(dirPath, startIndex, endIndex, gtFileName);
+                createFrames(dirPath, startIndex, endIndex, gtFileName);
                 //printf("feature size %lu\n", features.size());
                 //loadFeatures(features, dir1, imageNumber1);
                 long endFeatureTime = getTickCount();
