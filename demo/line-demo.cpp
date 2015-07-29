@@ -578,11 +578,11 @@ void queryBothFrame(vector<Frame> &frames, ORBDatabase &orbDB, LBDDatabase &line
         std::cout << lineResults << std::endl;
         unordered_map<int, double> orbResultMap;
         unordered_map<int, double> lineResultMap;
-        for(uint i = 0; i < orbResults.size(); ++i) {
-            orbResultMap.insert(std::pair<int, double>(orbResults[i].Id, orbResults[i].Score));
+        for(uint k = 0; k < orbResults.size(); ++k) {
+            orbResultMap.insert(std::pair<int, double>(orbResults[k].Id, orbResults[k].Score));
         }
-        for(uint i = 0; i < lineResults.size(); ++i) {
-            lineResultMap.insert(std::pair<int, double>(lineResults[i].Id, lineResults[i].Score));
+        for(uint k = 0; k < lineResults.size(); ++k) {
+            lineResultMap.insert(std::pair<int, double>(lineResults[k].Id, lineResults[k].Score));
         }
         unordered_map<int, double>::iterator orbMapIt;
         unordered_map<int, double>::iterator lineMapIt;
@@ -624,9 +624,9 @@ void queryBothFrame(vector<Frame> &frames, ORBDatabase &orbDB, LBDDatabase &line
         resultFS << "queryResults" << "[";
         printf("query frame pose:(%lf %lf)\n", queryPose[3], queryPose[11]);
         printf("final result:\n");
-        for(uint i = 0; i < queryResultVec.size(); ++i) {
-            int id = queryResultVec[i].first;
-            double score = queryResultVec[i].second;
+        for(uint j = 0; j < queryResultVec.size(); ++j) {
+            int id = queryResultVec[j].first;
+            double score = queryResultVec[j].second;
             vector<double> resultPose;
             if(!orbDB.getPose(id, resultPose)) {
                 assert(lineDB.getPose(id, resultPose));
@@ -646,56 +646,74 @@ void queryBothFrame(vector<Frame> &frames, ORBDatabase &orbDB, LBDDatabase &line
     resultFS.release();
 }
 
-void queryOrbFrame(vector<Frame> &frames, const ORBDatabase &db, int resultSize = 5) {
-    double truePositive = 0;
-    double falsePositive = 0;
-    double falseNegative = 0;
+void queryOrbFrame(vector<Frame> &frames, ORBDatabase &db, int resultSize = 5) {
+    string filename = "queryOrbResult.yml";
+    cv::FileStorage resultFS(filename.c_str(), cv::FileStorage::WRITE);
+    if(!resultFS.isOpened()) throw string("Could not open file ") + filename;
+    resultFS << "result" << "["; //result
     for(size_t i = 0; i < frames.size(); ++i) {
+        resultFS<<"{";
+        resultFS << "queryImage" << "{";
+        resultFS << "frameID" << frames[i].getID();
+        resultFS << "frameName" << frames[i].getImageName();
+        resultFS << "framePose" << frames[i].getFramePose();
+        resultFS << "}"; //query image
         QueryResults results;
         db.query(frames[i].getOrbFeatureDescs(), results, resultSize);
-        bool correct = false;
-        for(int j = 0; j < results.size(); ++j) {
-            if(abs((int)results[j].Id - (int)i) <= 5) {
-                truePositive++;
-                correct = true;
-                break;
-            }
+        scaleSortedResult(results, results.back().Score, results.front().Score);
+        resultFS << "queryResults" << "[";
+        for(size_t j = 0; j < results.size(); ++j) {
+            int id = (int)results[j].Id;
+            double score = (double)results[j].Score;
+            vector<double> resultPose;
+            assert(db.getPose(id, resultPose));
+            resultFS << "{";
+            resultFS << "frameID" << id;
+            resultFS << "score" << score;
+            resultFS << "pose" << resultPose;
+            resultFS << "}";
         }
-        if(!correct){
-            printf("false detection: query image %d\n", frames[i].getID());
-            cout << results << endl;
-            sleep(1);
-            falseNegative++;
-        }
+        resultFS << "]";
+        resultFS << "}";
+
         //printf("query image %d done with %d\n", i, correct);
     }
-    printf("recall rate: %lf\n", truePositive / (truePositive + falseNegative));
+    resultFS << "]"; //result
+    resultFS.release();
 }
 
-void queryLineFrame(vector<Frame> &frames, const LBDDatabase &db, int resultSize = 5) {
-    double truePositive = 0;
-    double falsePositive = 0;
-    double falseNegative = 0;
+void queryLineFrame(vector<Frame> &frames, LBDDatabase &db, int resultSize = 5) {
+    string filename = "queryLineResult.yml";
+    cv::FileStorage resultFS(filename.c_str(), cv::FileStorage::WRITE);
+    if(!resultFS.isOpened()) throw string("Could not open file ") + filename;
+    resultFS << "result" << "["; //result
     for(size_t i = 0; i < frames.size(); ++i) {
+        resultFS<<"{";
+        resultFS << "queryImage" << "{";
+        resultFS << "frameID" << frames[i].getID();
+        resultFS << "frameName" << frames[i].getImageName();
+        resultFS << "framePose" << frames[i].getFramePose();
+        resultFS << "}"; //query image
         QueryResults results;
         db.query(frames[i].getLineFeatureDescs(), results, resultSize);
-        bool correct = false;
-        for(int j = 0; j < results.size(); ++j) {
-            if(abs((int)results[j].Id - (int)i) <= 5) {
-                truePositive++;
-                correct = true;
-                break;
-            }
+        scaleSortedResult(results, results.back().Score, results.front().Score);
+        resultFS << "queryResults" << "[";
+        for(size_t j = 0; j < results.size(); ++j) {
+            int id = (int)results[j].Id;
+            double score = (double)results[j].Score;
+            vector<double> resultPose;
+            assert(db.getPose(id, resultPose));
+            resultFS << "{";
+            resultFS << "frameID" << id;
+            resultFS << "score" << score;
+            resultFS << "pose" << resultPose;
+            resultFS << "}";
         }
-        if(!correct){
-            printf("false detection: query image %d\n", frames[i].getID());
-            cout << results << endl;
-            sleep(1);
-            falseNegative++;
-        }
-        //printf("query image %d done with %d\n", i, correct);
+        resultFS << "]";
+        resultFS << "}";
     }
-    printf("recall rate: %lf\n", truePositive / (truePositive + falseNegative));
+    resultFS << "]"; //result
+    resultFS.release();
 }
 
 void queryOrb(const vector<vector<Mat> > &features, const ORBDatabase &db) {
