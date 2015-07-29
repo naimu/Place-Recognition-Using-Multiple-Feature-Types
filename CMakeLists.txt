@@ -31,9 +31,9 @@ if(BUILD_Demo)
   #target_link_libraries(ORB-demo ${PROJECT_NAME} ${OpenCV_LIBS} ${DLib_LIBS})
   add_executable(line-demo demo/line-demo.cpp)
   target_link_libraries(line-demo ${PROJECT_NAME} ${OpenCV_LIBS} ${DLib_LIBS})
-  add_executable(orb-demo demo/orb-demo.cpp)
-  target_link_libraries(orb-demo ${PROJECT_NAME} ${OpenCV_LIBS} ${DLib_LIBS})
-  file(COPY demo/images DESTINATION ${CMAKE_BINARY_DIR}/)
+  add_executable(analyseResult demo/analyseResult.cpp)
+  target_link_libraries(analyseResult ${PROJECT_NAME} ${OpenCV_LIBS} ${DLib_LIBS})
+#file(COPY demo/images DESTINATION ${CMAKE_BINARY_DIR}/)
 
 endif(BUILD_Demo)
 
